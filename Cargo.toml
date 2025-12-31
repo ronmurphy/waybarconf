@@ -1,0 +1,13 @@
+[package]
+name = "waybarconf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gtk4 = { version = "0.9", features = ["v4_10"] }
+libadwaita = { version = "0.7", features = ["v1_4"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+json_comments = "0.2"
+indexmap = { version = "2.2", features = ["serde"] }
+gio = { version = "0.21.5", features = ["v2_66"] }
