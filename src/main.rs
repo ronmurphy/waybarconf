@@ -13,7 +13,7 @@ use std::process::Command;
 
 use adw::prelude::*;
 use adw::{ActionRow, Application, ApplicationWindow, HeaderBar, ViewStack, ViewSwitcher, PreferencesGroup, ToastOverlay, Toast, MessageDialog, ComboRow};
-use gtk::{Box as GtkBox, ListBox, Orientation, Label, ScrolledWindow, TextView, Entry, Switch, Button, ColorButton, FileDialog, FileFilter, StringList, SearchEntry};
+use gtk::{Box as GtkBox, ListBox, Orientation, Label, ScrolledWindow, TextView, Entry, Switch, Button, ColorButton, FileDialog, FileFilter, StringList, SearchEntry, Scale};
 use crate::config::{WaybarConfig, WaybarProfile};
 
 const DEFAULT_CONFIG_JSON: &str = r#"{
@@ -47,14 +47,75 @@ const DEFAULT_STYLE_VARS: &str = r#"/* WaybarConf Style Variables */
 "#;
 
 const DEFAULT_LAYOUT_CSS: &str = r#"/* WaybarConf Layout CSS */
-#clock, #cpu, #memory, #pulseaudio, #network, #tray, #custom-launcher {
+#clock, #cpu, #memory, #pulseaudio, #network, #tray, [id^="custom-"] {
     padding: var(--padding_top) var(--margin_right) var(--padding_bottom) var(--margin_left);
     margin: 0 var(--spacing);
     background: @module_bg;
     color: @module_fg;
     border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+@keyframes blink {
+    to {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: @module_fg;
+    }
+}
+
+@keyframes glow_pulse {
+    0% { background-color: @module_bg; }
+    50% { background-color: @hover_bg; }
+    100% { background-color: @module_bg; }
+}
+
+@keyframes lift {
+    to { margin-top: -2px; }
+}
+
+@keyframes bounce {
+    0% { margin-top: 0; }
+    50% { margin-top: -5px; }
+    100% { margin-top: 0; }
+}
+
+@keyframes shiver {
+    0% { margin-left: 0; }
+    25% { margin-left: -2px; }
+    75% { margin-left: 2px; }
+    100% { margin-left: 0; }
+}
+
+@keyframes rainbow {
+    0% { color: #ff0000; }
+    16% { color: #ff7f00; }
+    33% { color: #ffff00; }
+    50% { color: #00ff00; }
+    66% { color: #0000ff; }
+    83% { color: #4b0082; }
+    100% { color: #9400d3; }
+}
+
+@keyframes spin {
+    from { margin-left: 0; }
+    to { margin-left: 0.1px; } 
+}
+
+@keyframes shake {
+    0% { margin-left: 0; }
+    10% { margin-left: -4px; }
+    30% { margin-left: 4px; }
+    50% { margin-left: -4px; }
+    70% { margin-left: 4px; }
+    90% { margin-left: -4px; }
+    100% { margin-left: 0; }
 }
 "#;
+
+const ICON_LIST: &[&str] = &[
+    "󰣇", "󰀻", "󰀕", "󰍛", "󰘚", "", "", "", "", "", "", "", "󰋊", "󰝚", "󰂄", "", "", "󰊠", "󰀘", "󰀯",
+    "", "󰠮", "󰂚", "󰵗", "󰦈", "󰃠", "󰃡", "󰖩", "󰖪", "󰤨", "󰤭", "󰥔", "󰥒", "󰥓", "󰥖", "󰥑", "󰥕", "󰥐"
+];
 
 fn main() {
     let application = Application::builder()
@@ -194,6 +255,91 @@ fn apply_matugen(path: &str, scheme_type: &str, style_rc: Rc<RefCell<StyleConfig
     Ok(())
 }
 
+fn ensure_keyframes(lines: &mut Vec<String>) {
+    let css = lines.join("\n");
+    if !css.contains("@keyframes rainbow") {
+        lines.push("\n/* Animation Keyframes */".to_string());
+        lines.push("@keyframes blink { to { background-color: rgba(255, 255, 255, 0.1); color: @module_fg; } }".to_string());
+        lines.push("@keyframes glow_pulse { 0% { background-color: @module_bg; } 50% { background-color: @hover_bg; } 100% { background-color: @module_bg; } }".to_string());
+        lines.push("@keyframes lift { to { margin-top: -2px; } }".to_string());
+        lines.push("@keyframes bounce { 0% { margin-top: 0; } 50% { margin-top: -5px; } 100% { margin-top: 0; } }".to_string());
+        lines.push("@keyframes wobble { 0% { margin-left: 0; } 25% { margin-left: -3px; } 75% { margin-left: 3px; } 100% { margin-left: 0; } }".to_string());
+        lines.push("@keyframes shake { 0% { margin-left: 0; } 10% { margin-left: -4px; } 30% { margin-left: 4px; } 50% { margin-left: -4px; } 70% { margin-left: 4px; } 90% { margin-left: -4px; } 100% { margin-left: 0; } }".to_string());
+        lines.push("@keyframes shiver { 0% { margin-left: 0; } 25% { margin-left: -2px; } 75% { margin-left: 2px; } 100% { margin-left: 0; } }".to_string());
+        lines.push("@keyframes rainbow { 0% { color: #ff0000; } 16% { color: #ff7f00; } 33% { color: #ffff00; } 50% { color: #00ff00; } 66% { color: #0000ff; } 83% { color: #4b0082; } 100% { color: #9400d3; } }".to_string());
+    }
+}
+
+fn update_module_css(path: &Path, mod_name: &str, suffix: &str, prop: &str, value: &str) {
+    let id = format!("#{}{}", mod_name.replace("/", "-"), suffix);
+    let full_css = fs::read_to_string(path).unwrap_or_else(|_| DEFAULT_LAYOUT_CSS.to_string());
+    let mut lines: Vec<String> = full_css.lines().map(|s| s.to_string()).collect();
+    
+    ensure_keyframes(&mut lines);
+    
+    let mut block_start = None;
+    let mut block_end = None;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim().starts_with(&id) && (line.contains('{') || i + 1 < lines.len() && lines[i+1].contains('{')) {
+            block_start = Some(i);
+        }
+        if block_start.is_some() && line.contains('}') {
+            block_end = Some(i);
+            break;
+        }
+    }
+
+    if let (Some(start), Some(end)) = (block_start, block_end) {
+        let mut prop_idx = None;
+        for i in start + 1..end {
+            if lines[i].trim().starts_with(prop) {
+                prop_idx = Some(i);
+                break;
+            }
+        }
+
+        if value.is_empty() {
+             if let Some(idx) = prop_idx { lines.remove(idx); }
+        } else {
+            let new_line = format!("    {}: {};", prop, value);
+            if let Some(idx) = prop_idx {
+                lines[idx] = new_line;
+            } else {
+                lines.insert(end, new_line);
+            }
+        }
+    } else if !value.is_empty() {
+        lines.push(format!("\n{} {{\n    {}: {};\n}}", id, prop, value));
+    }
+
+    let _ = fs::write(path, lines.join("\n"));
+}
+
+fn get_module_css_prop(path: &Path, mod_name: &str, suffix: &str, prop: &str) -> Option<String> {
+    let id = format!("#{}{}", mod_name.replace("/", "-"), suffix);
+    let full_css = fs::read_to_string(path).ok()?;
+    let lines: Vec<&str> = full_css.lines().collect();
+    
+    let mut block_start = None;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim().starts_with(&id) && (line.contains('{') || i + 1 < lines.len() && lines[i+1].contains('{')) {
+            block_start = Some(i);
+            break;
+        }
+    }
+
+    if let Some(start) = block_start {
+        for line in &lines[start + 1..] {
+            if line.contains('}') { break; }
+            if line.trim().starts_with(prop) {
+                let val = line.split(':').collect::<Vec<&str>>()[1].trim().trim_matches(';').to_string();
+                return Some(val);
+            }
+        }
+    }
+    None
+}
+
 fn build_ui(app: &Application) {
     let waybar_config: WaybarConfig = serde_json::from_str(DEFAULT_CONFIG_JSON).unwrap();
     let config_rc = Rc::new(RefCell::new(waybar_config));
@@ -290,21 +436,47 @@ fn build_ui(app: &Application) {
         let right_list = right_list.clone();
         let update_props_ref = Rc::clone(&update_properties_fn);
         let sel_state = Rc::clone(&selected_module_state);
+        let refresh_ui_fn_c = Rc::clone(&refresh_ui_fn);
         
         move || {
             let config = config_rc.borrow();
-            let populate = |list: &ListBox, modules: &[String], col_id: &str| {
-                while let Some(child) = list.first_child() { list.remove(&child); }
+            
+            fn populate_recursive(list: &ListBox, modules: &[String], col_id: &str, depth: u32, cfg: &WaybarConfig, 
+                                 update_cb: &Rc<RefCell<Option<Box<dyn Fn(String)>>>>, 
+                                 sel_s: &Rc<RefCell<Option<(String, String)>>>,
+                                 config_rc: &Rc<RefCell<WaybarConfig>>,
+                                 refresh_ui_fn: &Rc<RefCell<Option<Box<dyn Fn()>>>>) {
                 for m in modules {
-                    let row = create_module_row(m);
+                    let row = create_module_row(m, depth);
                     let name = m.clone();
                     let cid = col_id.to_string();
-                    let update_cb = Rc::clone(&update_props_ref);
-                    let sel_s = Rc::clone(&sel_state);
+                    let update_cb_c = Rc::clone(update_cb);
+                    let sel_s_c = Rc::clone(sel_s);
+                    
                     row.connect_activated(move |_| {
-                        *sel_s.borrow_mut() = Some((cid.clone(), name.clone()));
-                        if let Some(f) = &*update_cb.borrow() { f(name.clone()); }
+                        *sel_s_c.borrow_mut() = Some((cid.clone(), name.clone()));
+                        if let Some(f) = &*update_cb_c.borrow() { f(name.clone()); }
                     });
+                    
+                    if depth > 0 {
+                        let ungroup_btn = Button::builder().icon_name("edit-undo-symbolic").has_frame(false).tooltip_text("Ungroup").build();
+                        let cfg_u = Rc::clone(config_rc); let ref_u = Rc::clone(refresh_ui_fn); 
+                        let name_u = m.clone(); let cid_u = col_id.to_string();
+                        ungroup_btn.connect_clicked(move |_| {
+                            let mut cfg = cfg_u.borrow_mut();
+                            if let Some(it) = remove_module_anywhere(&mut cfg, &name_u) {
+                                match cid_u.as_str() { 
+                                    "left" => cfg.modules_left.push(it),
+                                    "center" => cfg.modules_center.push(it),
+                                    "right" => cfg.modules_right.push(it),
+                                    _ => {}
+                                }
+                            }
+                            drop(cfg); 
+                            if let Some(f) = &*ref_u.borrow() { f(); }
+                        });
+                        row.add_suffix(&ungroup_btn);
+                    }
                     
                     let ds = gtk::DragSource::new();
                     ds.set_actions(gdk::DragAction::MOVE);
@@ -312,11 +484,26 @@ fn build_ui(app: &Application) {
                     ds.connect_prepare(move |_, _, _| Some(gdk::ContentProvider::for_value(&full_id.to_value())));
                     row.add_controller(ds);
                     list.append(&row);
+                    
+                    if m.starts_with("group/") {
+                        if let Some(def) = cfg.module_definitions.get(m) {
+                            if let Some(children) = def.get("modules").and_then(|v| v.as_array()) {
+                                let child_names: Vec<String> = children.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+                                populate_recursive(list, &child_names, col_id, depth + 1, cfg, update_cb, sel_s, config_rc, refresh_ui_fn);
+                            }
+                        }
+                    }
                 }
-            };
-            populate(&left_list, &config.modules_left, "left");
-            populate(&center_list, &config.modules_center, "center");
-            populate(&right_list, &config.modules_right, "right");
+            }
+
+            while let Some(child) = left_list.first_child() { left_list.remove(&child); }
+            while let Some(child) = center_list.first_child() { center_list.remove(&child); }
+            while let Some(child) = right_list.first_child() { right_list.remove(&child); }
+
+            let r_fn = Rc::clone(&refresh_ui_fn_c);
+            populate_recursive(&left_list, &config.modules_left, "left", 0, &config, &update_props_ref, &sel_state, &config_rc, &r_fn);
+            populate_recursive(&center_list, &config.modules_center, "center", 0, &config, &update_props_ref, &sel_state, &config_rc, &r_fn);
+            populate_recursive(&right_list, &config.modules_right, "right", 0, &config, &update_props_ref, &sel_state, &config_rc, &r_fn);
         }
     };
 
@@ -432,7 +619,30 @@ fn build_ui(app: &Application) {
                                         o.insert(k_inner.clone(), val);
                                     }
                                 });
+                                
+                                let icon_btn = Button::builder().icon_name("face-smile-symbolic").has_frame(false).build();
+                                let pop = gtk::Popover::new();
+                                let grid = gtk::FlowBox::builder().max_children_per_line(8).min_children_per_line(8).selection_mode(gtk::SelectionMode::None).build();
+                                grid.set_margin_top(8); grid.set_margin_bottom(8); grid.set_margin_start(8); grid.set_margin_end(8);
+                                
+                                for icon in ICON_LIST {
+                                    let btn = Button::with_label(icon);
+                                    btn.add_css_class("flat");
+                                    let e_c = en.clone(); let i_c = icon.to_string();
+                                    let p_weak = pop.downgrade();
+                                    btn.connect_clicked(move |_| {
+                                        let text = e_c.text().to_string();
+                                        e_c.set_text(&(text + &i_c));
+                                        if let Some(p) = p_weak.upgrade() { p.popdown(); }
+                                    });
+                                    grid.insert(&btn, -1);
+                                }
+                                pop.set_child(Some(&grid));
+                                pop.set_parent(&icon_btn);
+                                icon_btn.connect_clicked(move |_| pop.popup());
+                                
                                 row.add_suffix(&en);
+                                row.add_suffix(&icon_btn);
                             }
                         }
                         group.add(&row);
@@ -455,6 +665,370 @@ fn build_ui(app: &Application) {
                 if let Some(f) = &*update_add.borrow() { f(mod_add.clone()); }
             });
             props_page.append(&add_btn);
+            
+            // --- Visual Overrides Section ---
+            let vis_group = PreferencesGroup::new();
+            vis_group.set_title("Visual Overrides");
+            vis_group.set_description(Some("These settings override default styles and are saved to your layout CSS."));
+            
+            let create_css_row = |title: &str, prop: &str, min: f64, max: f64, layout_path: PathBuf, mod_name: String, update_fn: Rc<RefCell<Option<Box<dyn Fn(String)>>>>| {
+                let row = ActionRow::new();
+                row.set_title(title);
+                let current = get_module_css_prop(&layout_path, &mod_name, "", prop)
+                    .and_then(|v| v.chars().filter(|c| c.is_digit(10)).collect::<String>().parse::<f64>().ok())
+                    .unwrap_or(if prop == "font-size" { 14.0 } else { 0.0 });
+                
+                let scale = gtk::Scale::with_range(Orientation::Horizontal, min, max, 1.0);
+                scale.set_value(current);
+                scale.set_width_request(150);
+                scale.set_valign(gtk::Align::Center);
+                
+                let lp = layout_path.clone(); let mn = mod_name.clone(); let pr = prop.to_string();
+                let upd = Rc::clone(&update_fn);
+                scale.connect_value_changed(move |s| {
+                    let val = format!("{}px", s.value() as i32);
+                    update_module_css(&lp, &mn, "", &pr, &val);
+                    if let Some(f) = &*upd.borrow() { f(mn.clone()); }
+                });
+                row.add_suffix(&scale);
+                row
+            };
+            
+            vis_group.add(&create_css_row("Font Size", "font-size", 6.0, 48.0, layout_css_path.clone(), mod_name.clone(), Rc::clone(&update_props_self)));
+            vis_group.add(&create_css_row("Margin", "margin", 0.0, 50.0, layout_css_path.clone(), mod_name.clone(), Rc::clone(&update_props_self)));
+            vis_group.add(&create_css_row("Padding", "padding", 0.0, 50.0, layout_css_path.clone(), mod_name.clone(), Rc::clone(&update_props_self)));
+            vis_group.add(&create_css_row("Border Radius", "border-radius", 0.0, 50.0, layout_css_path.clone(), mod_name.clone(), Rc::clone(&update_props_self)));
+            
+            props_page.append(&vis_group);
+
+            // --- Group Configuration (Drawer/Orientation) ---
+            if mod_name.starts_with("group/") {
+                let group_cfg = PreferencesGroup::new();
+                group_cfg.set_title("Group Configuration");
+                
+                // Drawer Switch
+                let drawer_row = ActionRow::new();
+                drawer_row.set_title("Drawer Mode (Slide-out)");
+                let drawer_sw = Switch::builder().valign(gtk::Align::Center).build();
+                if let Some(def) = config_borrow_orig.module_definitions.get(&mod_name) {
+                    if def.get("drawer").is_some() { drawer_sw.set_active(true); }
+                }
+
+                let cfg_d = Rc::clone(&config_rc); let mn_d = mod_name.clone(); let ref_d = Rc::clone(&refresh_rc);
+                drawer_sw.connect_state_set(move |_, state| {
+                    let mut c = cfg_d.borrow_mut();
+                    if let Some(def) = c.module_definitions.get_mut(&mn_d) {
+                        if state {
+                            if def.get("drawer").is_none() {
+                                def.as_object_mut().unwrap().insert("drawer".to_string(), serde_json::json!({ "transition-duration": 500 }));
+                            }
+                        } else {
+                            def.as_object_mut().unwrap().remove("drawer");
+                        }
+                    }
+                    drop(c); ref_d();
+                    glib::Propagation::Proceed
+                });
+                drawer_row.add_suffix(&drawer_sw);
+                group_cfg.add(&drawer_row);
+
+                // Drawer Duration
+                let dur_row = ActionRow::new();
+                dur_row.set_title("Drawer Duration (ms)");
+                let dur_adj = gtk::Adjustment::new(500.0, 0.0, 2000.0, 50.0, 100.0, 0.0);
+                let dur_scale = Scale::new(gtk::Orientation::Horizontal, Some(&dur_adj));
+                dur_scale.set_width_request(150);
+                dur_scale.set_draw_value(true);
+                
+                if let Some(def) = config_borrow_orig.module_definitions.get(&mod_name) {
+                    if let Some(d) = def.get("drawer").and_then(|v| v.get("transition-duration")) {
+                        if let Some(f) = d.as_f64() { dur_scale.set_value(f); }
+                    }
+                }
+
+                let cfg_dur = Rc::clone(&config_rc); let mn_dur = mod_name.clone(); let ref_dur = Rc::clone(&refresh_rc);
+                dur_scale.connect_value_changed(move |s| {
+                    let mut c = cfg_dur.borrow_mut();
+                    if let Some(def) = c.module_definitions.get_mut(&mn_dur).and_then(|d| d.as_object_mut()) {
+                        if let Some(drawer) = def.get_mut("drawer").and_then(|d| d.as_object_mut()) {
+                            drawer.insert("transition-duration".to_string(), serde_json::json!(s.value() as i64));
+                        }
+                    }
+                    drop(c); ref_dur();
+                });
+                dur_row.add_suffix(&dur_scale);
+                group_cfg.add(&dur_row);
+
+                // Click to Reveal
+                let click_row = ActionRow::new();
+                click_row.set_title("Click to reveal");
+                let click_sw = Switch::builder().valign(gtk::Align::Center).build();
+                if let Some(def) = config_borrow_orig.module_definitions.get(&mod_name) {
+                    if let Some(d) = def.get("drawer") {
+                        if d.get("click-to-reveal").and_then(|v| v.as_bool()).unwrap_or(false) { click_sw.set_active(true); }
+                    }
+                }
+                let cfg_c = Rc::clone(&config_rc); let mn_c = mod_name.clone(); let ref_c = Rc::clone(&refresh_rc);
+                click_sw.connect_state_set(move |_, state| {
+                    let mut c = cfg_c.borrow_mut();
+                    if let Some(def) = c.module_definitions.get_mut(&mn_c).and_then(|d| d.as_object_mut()) {
+                        if let Some(drawer) = def.get_mut("drawer").and_then(|d| d.as_object_mut()) {
+                            drawer.insert("click-to-reveal".to_string(), serde_json::json!(state));
+                        }
+                    }
+                    drop(c); ref_c();
+                    glib::Propagation::Proceed
+                });
+                click_row.add_suffix(&click_sw);
+                group_cfg.add(&click_row);
+
+                // Left to Right
+                let ltr_row = ActionRow::new();
+                ltr_row.set_title("Left to right transition");
+                let ltr_sw = Switch::builder().valign(gtk::Align::Center).build();
+                if let Some(def) = config_borrow_orig.module_definitions.get(&mod_name) {
+                    if let Some(d) = def.get("drawer") {
+                        if d.get("transition-left-to-right").and_then(|v| v.as_bool()).unwrap_or(false) { ltr_sw.set_active(true); }
+                    }
+                }
+                let cfg_l = Rc::clone(&config_rc); let mn_l = mod_name.clone(); let ref_l = Rc::clone(&refresh_rc);
+                ltr_sw.connect_state_set(move |_, state| {
+                    let mut c = cfg_l.borrow_mut();
+                    if let Some(def) = c.module_definitions.get_mut(&mn_l).and_then(|d| d.as_object_mut()) {
+                        if let Some(drawer) = def.get_mut("drawer").and_then(|d| d.as_object_mut()) {
+                            drawer.insert("transition-left-to-right".to_string(), serde_json::json!(state));
+                        }
+                    }
+                    drop(c); ref_l();
+                    glib::Propagation::Proceed
+                });
+                ltr_row.add_suffix(&ltr_sw);
+                group_cfg.add(&ltr_row);
+
+                // Orientation
+                let orient_row = ComboRow::new();
+                orient_row.set_title("Orientation");
+                let orients = vec!["inherit", "horizontal", "vertical"];
+                let model = StringList::new(&orients);
+                orient_row.set_model(Some(&model));
+                
+                if let Some(def) = config_borrow_orig.module_definitions.get(&mod_name) {
+                    if let Some(v) = def.get("orientation").and_then(|v| v.as_str()) {
+                        let idx = match v { "horizontal" => 1, "vertical" => 2, _ => 0 };
+                        orient_row.set_selected(idx);
+                    }
+                }
+
+                let cfg_o = Rc::clone(&config_rc); let mn_o = mod_name.clone(); let ref_o = Rc::clone(&refresh_rc);
+                orient_row.connect_selected_notify(move |row| {
+                    let mut c = cfg_o.borrow_mut();
+                    if let Some(def) = c.module_definitions.get_mut(&mn_o) {
+                        let val = match row.selected() {
+                            1 => Some("horizontal"),
+                            2 => Some("vertical"),
+                            _ => None,
+                        };
+                        if let Some(v) = val { def.as_object_mut().unwrap().insert("orientation".to_string(), serde_json::json!(v)); }
+                        else { def.as_object_mut().unwrap().remove("orientation"); }
+                    }
+                    drop(c); ref_o();
+                });
+                group_cfg.add(&orient_row);
+                props_page.append(&group_cfg);
+            }
+
+            let anim_group = PreferencesGroup::new();
+            anim_group.set_title("Animations and Effects");
+            
+            // --- Smooth Transitions ---
+            let transition_row = ActionRow::new();
+            transition_row.set_title("Smooth Transitions");
+            let trans_active = get_module_css_prop(&layout_css_path, &mod_name, "", "transition").is_some();
+            let trans_sw = Switch::builder().active(trans_active).valign(gtk::Align::Center).build();
+            let lp_t = layout_css_path.clone(); let mn_t = mod_name.clone(); let upd_t = Rc::clone(&update_props_self);
+            trans_sw.connect_state_set(move |_, state| {
+                let val = if state { "all 0.3s ease" } else { "" };
+                update_module_css(&lp_t, &mn_t, "", "transition", val);
+                if let Some(f) = &*upd_t.borrow() { f(mn_t.clone()); }
+                glib::Propagation::Proceed
+            });
+            transition_row.add_suffix(&trans_sw);
+            anim_group.add(&transition_row);
+
+            // --- Hover Effects ---
+            let hover_row = ComboRow::new();
+            hover_row.set_title("Hover Effect");
+            let hover_effects = vec!["none", "glow", "lift", "bounce", "wobble", "shake", "blink"];
+            let hover_model = StringList::new(&hover_effects);
+            hover_row.set_model(Some(&hover_model));
+            
+            let current_hover = if get_module_css_prop(&layout_css_path, &mod_name, ":hover", "background-color").is_some() { 1 }
+                               else if get_module_css_prop(&layout_css_path, &mod_name, ":hover", "margin-top").is_some() && get_module_css_prop(&layout_css_path, &mod_name, ":hover", "animation").is_none() { 2 }
+                               else if let Some(a) = get_module_css_prop(&layout_css_path, &mod_name, ":hover", "animation") {
+                                   if a.contains("bounce") { 3 } else if a.contains("wobble") { 4 } else if a.contains("shake") { 5 } else if a.contains("blink") { 6 } else { 0 }
+                               }
+                               else { 0 };
+            hover_row.set_selected(current_hover);
+            
+            let lp_h = layout_css_path.clone(); let mn_h = mod_name.clone(); let upd_h = Rc::clone(&update_props_self);
+            hover_row.connect_selected_notify(move |row| {
+                let sel = row.selected();
+                // Clear old hover effects
+                update_module_css(&lp_h, &mn_h, ":hover", "background-color", "");
+                update_module_css(&lp_h, &mn_h, ":hover", "margin-top", "");
+                update_module_css(&lp_h, &mn_h, ":hover", "color", "");
+                update_module_css(&lp_h, &mn_h, ":hover", "animation", "");
+                
+                match sel {
+                    1 => { // Glow
+                        update_module_css(&lp_h, &mn_h, ":hover", "background-color", "@hover_bg");
+                        update_module_css(&lp_h, &mn_h, ":hover", "color", "@hover_fg");
+                    }
+                    2 => { // Lift (static)
+                        update_module_css(&lp_h, &mn_h, ":hover", "margin-top", "-2px");
+                    }
+                    3 => { // Bounce
+                        update_module_css(&lp_h, &mn_h, ":hover", "animation", "bounce 0.5s infinite");
+                    }
+                    4 => { // Wobble
+                        update_module_css(&lp_h, &mn_h, ":hover", "animation", "wobble 0.4s infinite");
+                    }
+                    5 => { // Shake
+                        update_module_css(&lp_h, &mn_h, ":hover", "animation", "shake 0.3s infinite");
+                    }
+                    6 => { // Blink
+                        update_module_css(&lp_h, &mn_h, ":hover", "animation", "blink 1s infinite alternate");
+                    }
+                    _ => {}
+                }
+                if let Some(f) = &*upd_h.borrow() { f(mn_h.clone()); }
+            });
+            anim_group.add(&hover_row);
+
+            // --- Constant Animation ---
+            let const_row = ComboRow::new();
+            const_row.set_title("Constant Animation");
+            let const_effects = vec!["none", "blink", "pulse", "rainbow", "shiver"];
+            let const_model = StringList::new(&const_effects);
+            const_row.set_model(Some(&const_model));
+
+            let current_const = if let Some(a) = get_module_css_prop(&layout_css_path, &mod_name, "", "animation") {
+                if a.contains("pulse") { 2 } else if a.contains("rainbow") { 3 } else if a.contains("shiver") { 4 } else if a.contains("blink") { 1 } else { 0 }
+            } else { 0 };
+            const_row.set_selected(current_const);
+
+            let lp_c = layout_css_path.clone(); let mn_c = mod_name.clone(); let upd_c = Rc::clone(&update_props_self);
+            const_row.connect_selected_notify(move |row| {
+                let sel = row.selected();
+                update_module_css(&lp_c, &mn_c, "", "animation", "");
+                match sel {
+                    1 => { 
+                        update_module_css(&lp_c, &mn_c, "", "animation", "blink 1s infinite alternate");
+                        update_module_css(&lp_c, &mn_c, "", "transition", "none");
+                    }
+                    2 => { 
+                        update_module_css(&lp_c, &mn_c, "", "animation", "glow_pulse 2s infinite");
+                        update_module_css(&lp_c, &mn_c, "", "transition", "none");
+                    }
+                    3 => {
+                        update_module_css(&lp_c, &mn_c, "", "animation", "rainbow 4s infinite linear");
+                        update_module_css(&lp_c, &mn_c, "", "transition", "none");
+                    }
+                    4 => {
+                        update_module_css(&lp_c, &mn_c, "", "animation", "shiver 0.2s infinite");
+                        update_module_css(&lp_c, &mn_c, "", "transition", "none");
+                    }
+                    _ => {
+                        update_module_css(&lp_c, &mn_c, "", "transition", "all 0.3s ease");
+                    }
+                }
+                if let Some(f) = &*upd_c.borrow() { f(mn_c.clone()); }
+            });
+            anim_group.add(&const_row);
+
+            props_page.append(&anim_group);
+
+            // --- Module States & Thresholds (Battery, CPU, Memory) ---
+            if ["battery", "cpu", "memory"].contains(&mod_name.as_str()) {
+                let state_group = PreferencesGroup::new();
+                state_group.set_title("Module States and Thresholds");
+                
+                let states_to_add = match mod_name.as_str() {
+                    "battery" => vec![("Warning", "warning", 30.0), ("Critical", "critical", 15.0), ("Full", "full", 100.0)],
+                    _ => vec![("Warning", "warning", 70.0), ("Critical", "critical", 90.0)],
+                };
+
+                for (label, key, default_val) in states_to_add {
+                    let row = ActionRow::new();
+                    row.set_title(label);
+                    
+                    // JSON threshold setup
+                    let adj = gtk::Adjustment::new(default_val, 0.0, 100.0, 1.0, 10.0, 0.0);
+                    let scale = Scale::new(gtk::Orientation::Horizontal, Some(&adj));
+                    scale.set_width_request(150);
+                    scale.set_draw_value(true);
+                    
+                    // Pre-load current JSON value
+                    if let Some(def) = config_borrow_orig.module_definitions.get(&mod_name) {
+                        if let Some(states) = def.get("states") {
+                            if let Some(v) = states.get(key) {
+                                if let Some(f) = v.as_f64() { scale.set_value(f); }
+                            }
+                        }
+                    }
+
+                    let config_s = Rc::clone(&config_rc); let mod_s = mod_name.clone(); let key_s = key.to_string();
+                    let refresh_s = Rc::clone(&refresh_rc);
+                    scale.connect_value_changed(move |s: &Scale| {
+                        let val = s.value();
+                        {
+                            let mut cfg = config_s.borrow_mut();
+                            if let Some(def) = cfg.module_definitions.get_mut(&mod_s) {
+                                if def.get("states").is_none() {
+                                    def.as_object_mut().unwrap().insert("states".to_string(), serde_json::json!({}));
+                                }
+                                def.get_mut("states").unwrap().as_object_mut().unwrap().insert(key_s.clone(), serde_json::json!(val));
+                            }
+                        }
+                        refresh_s();
+                    });
+                    row.add_suffix(&scale);
+
+                    // Animation picker for this state
+                    let anim_combo = ComboRow::new();
+                    let sub = format!("Triggered at {}%", label);
+                    anim_combo.set_subtitle(&sub);
+                    let effects = vec!["none", "blink", "pulse", "rainbow", "shiver", "shake"];
+                    let model = StringList::new(&effects);
+                    anim_combo.set_model(Some(&model));
+                    
+                    let suffix = format!(".{}", key);
+                    let current = if let Some(a) = get_module_css_prop(&layout_css_path, &mod_name, &suffix, "animation") {
+                        if a.contains("pulse") { 2 } else if a.contains("rainbow") { 3 } else if a.contains("shiver") { 4 } else if a.contains("shake") { 5 } else if a.contains("blink") { 1 } else { 0 }
+                    } else { 0 };
+                    anim_combo.set_selected(current);
+
+                    let lp_s = layout_css_path.clone(); let mn_s = mod_name.clone(); let suf_s = suffix.clone();
+                    let upd_s = Rc::clone(&update_props_self);
+                    anim_combo.connect_selected_notify(move |row| {
+                        let sel = row.selected();
+                        update_module_css(&lp_s, &mn_s, &suf_s, "animation", "");
+                        match sel {
+                            1 => { update_module_css(&lp_s, &mn_s, &suf_s, "animation", "blink 1s infinite alternate"); }
+                            2 => { update_module_css(&lp_s, &mn_s, &suf_s, "animation", "glow_pulse 2s infinite"); }
+                            3 => { update_module_css(&lp_s, &mn_s, &suf_s, "animation", "rainbow 4s infinite linear"); }
+                            4 => { update_module_css(&lp_s, &mn_s, &suf_s, "animation", "shiver 0.2s infinite"); }
+                            5 => { update_module_css(&lp_s, &mn_s, &suf_s, "animation", "shake 0.3s infinite"); }
+                            _ => {}
+                        }
+                        if let Some(f) = &*upd_s.borrow() { f(mn_s.clone()); }
+                    });
+                    
+                    state_group.add(&row);
+                    state_group.add(&anim_combo);
+                }
+                props_page.append(&state_group);
+            }
 
             while let Some(child) = code_page.first_child() { code_page.remove(&child); }
             let json_label = Label::new(Some("JSON Module Definition"));
@@ -737,15 +1311,39 @@ fn build_ui(app: &Application) {
         dt.connect_drop(move |_, val, _, y| {
             let data = val.get::<String>().unwrap_or_default();
             let mut parts = data.splitn(2, ':');
-            let (scol, mname) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+            let (_scol, mname) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
             if mname.is_empty() { return false; }
             let mut cfg = config_rc.borrow_mut();
-            let slist = match scol { "left" => &mut cfg.modules_left, "center" => &mut cfg.modules_center, "right" => &mut cfg.modules_right, _ => return false };
-            let item = if let Some(p) = slist.iter().position(|m| m == mname) { slist.remove(p) } else { return false };
-            let tlist = match cid.as_str() { "left" => &mut cfg.modules_left, "center" => &mut cfg.modules_center, "right" => &mut cfg.modules_right, _ => return false };
-            let mut idx = tlist.len();
-            if let Some(r) = list_c.row_at_y(y as i32) { idx = r.index() as usize; }
-            if idx > tlist.len() { tlist.push(item); } else { tlist.insert(idx, item); }
+            let item = if let Some(it) = remove_module_anywhere(&mut cfg, mname) { it } else { return false };
+            
+            let mapping = get_flat_mapping(&cfg, &cid);
+            let mut target_idx = mapping.len();
+            if let Some(r) = list_c.row_at_y(y as i32) { target_idx = r.index() as usize; }
+
+            if target_idx < mapping.len() {
+                let (parent, relative_to) = mapping[target_idx].clone();
+                if relative_to.starts_with("group/") {
+                    // Drop ON group: nest at start
+                    let def = cfg.module_definitions.get_mut(&relative_to).unwrap();
+                    if def.get("modules").is_none() { def.as_object_mut().unwrap().insert("modules".to_string(), serde_json::json!([])); }
+                    def.get_mut("modules").unwrap().as_array_mut().unwrap().insert(0, serde_json::json!(item));
+                } else if let Some(p) = parent {
+                    // Drop BEFORE sibling in group
+                    let def = cfg.module_definitions.get_mut(&p).unwrap();
+                    let mods = def.get_mut("modules").unwrap().as_array_mut().unwrap();
+                    let p_idx = mods.iter().position(|v| v.as_str() == Some(&relative_to)).unwrap();
+                    mods.insert(p_idx, serde_json::json!(item));
+                } else {
+                    // Drop BEFORE sibling at top level
+                    let slist = match cid.as_str() { "left" => &mut cfg.modules_left, "center" => &mut cfg.modules_center, "right" => &mut cfg.modules_right, _ => return false };
+                    let p_idx = slist.iter().position(|m| m == &relative_to).unwrap();
+                    slist.insert(p_idx, item);
+                }
+            } else {
+                // Append to top level
+                let slist = match cid.as_str() { "left" => &mut cfg.modules_left, "center" => &mut cfg.modules_center, "right" => &mut cfg.modules_right, _ => return false };
+                slist.push(item);
+            }
             drop(cfg); refresh(); true
         });
         list.add_controller(dt);
@@ -760,7 +1358,40 @@ fn build_ui(app: &Application) {
         let b = GtkBox::new(Orientation::Vertical, 6);
         let h = GtkBox::new(Orientation::Horizontal, 6);
         let l = Label::new(Some(name)); l.add_css_class("title-4"); h.append(&l);
-        let add_btn = Button::builder().icon_name("list-add-symbolic").has_frame(false).build();
+        
+        let spacer = GtkBox::new(Orientation::Horizontal, 0);
+        spacer.set_hexpand(true);
+        h.append(&spacer);
+
+        let add_btn = Button::builder().icon_name("list-add-symbolic").has_frame(false).tooltip_text("Add Module").build();
+        let group_btn = Button::builder().icon_name("folder-new-symbolic").has_frame(false).tooltip_text("Create Group").build();
+        h.append(&group_btn);
+        h.append(&add_btn);
+
+        let cfg_g = Rc::clone(&config_rc); let ref_g = Rc::clone(&refresh_rc); let cid_g = col_id.to_string();
+        group_btn.connect_clicked(move |_| {
+            let dialog = MessageDialog::builder().heading("Create Group").body("Enter a name for the new group").build();
+            let entry = Entry::builder().placeholder_text("hardware, stats, etc.").build();
+            dialog.set_extra_child(Some(&entry));
+            dialog.add_response("cancel", "Cancel");
+            dialog.add_response("create", "Create");
+            dialog.set_response_appearance("create", adw::ResponseAppearance::Suggested);
+            let cfg = Rc::clone(&cfg_g); let ref_r = Rc::clone(&ref_g); let cid = cid_g.clone();
+            dialog.connect_response(None, move |d, response| {
+                if response == "create" {
+                    let mut name = entry.text().to_string();
+                    if !name.is_empty() {
+                        if !name.starts_with("group/") { name = format!("group/{}", name); }
+                        let mut c = cfg.borrow_mut();
+                        match cid.as_str() { "left" => c.modules_left.push(name.clone()), "center" => c.modules_center.push(name.clone()), "right" => c.modules_right.push(name.clone()), _ => {} }
+                        c.module_definitions.insert(name.clone(), serde_json::json!({ "modules": [] }));
+                        drop(c); ref_r();
+                    }
+                }
+                d.close();
+            });
+            dialog.present();
+        });
         let popover = gtk::Popover::new(); popover.set_width_request(250);
         let pop_list = ListBox::new();
         let search = SearchEntry::builder().margin_top(6).margin_bottom(6).margin_start(6).margin_end(6).build();
@@ -897,7 +1528,68 @@ fn build_ui(app: &Application) {
     win.present();
 }
 
-fn create_module_row(n: &str) -> ActionRow {
-    let icon = if n.starts_with("custom/") { "applications-system-symbolic" } else { match n { "clock" => "x-office-calendar-symbolic", "battery" => "battery-full-symbolic", "cpu" => "chip-symbolic", "memory" => "ram-symbolic", "network" => "network-wireless-symbolic", "pulseaudio" => "audio-volume-high-symbolic", "backlight" => "display-brightness-symbolic", "tray" => "panel-show-symbolic", _ => "extension-symbolic" } };
-    ActionRow::builder().title(n).icon_name(icon).activatable(true).build()
+fn create_module_row(n: &str, depth: u32) -> ActionRow {
+    let is_group = n.starts_with("group/");
+    let icon = if is_group { "folder-symbolic" } 
+               else if n.starts_with("custom/") { "applications-system-symbolic" } 
+               else { match n { 
+                   "clock" => "x-office-calendar-symbolic", 
+                   "battery" => "battery-full-symbolic", 
+                   "cpu" => "chip-symbolic", 
+                   "memory" => "ram-symbolic", 
+                   "network" => "network-wireless-symbolic", 
+                   "pulseaudio" => "audio-volume-high-symbolic", 
+                   "backlight" => "display-brightness-symbolic", 
+                   "tray" => "panel-show-symbolic", 
+                   _ => "extension-symbolic" 
+               } };
+    let row = ActionRow::builder().title(n).icon_name(icon).activatable(true).build();
+    if depth > 0 {
+        row.set_margin_start((depth * 20) as i32);
+        row.add_css_class("nested-row");
+    }
+    if is_group {
+        row.add_css_class("group-row");
+    }
+    row
+}
+
+fn remove_module_anywhere(cfg: &mut WaybarConfig, name: &str) -> Option<String> {
+    let mut found = None;
+    if let Some(p) = cfg.modules_left.iter().position(|m| m == name) { found = Some(cfg.modules_left.remove(p)); }
+    else if let Some(p) = cfg.modules_center.iter().position(|m| m == name) { found = Some(cfg.modules_center.remove(p)); }
+    else if let Some(p) = cfg.modules_right.iter().position(|m| m == name) { found = Some(cfg.modules_right.remove(p)); }
+    else {
+        for def in cfg.module_definitions.values_mut() {
+            if let Some(mods) = def.get_mut("modules").and_then(|m| m.as_array_mut()) {
+                if let Some(p) = mods.iter().position(|v| v.as_str() == Some(name)) {
+                    let removed = mods.remove(p);
+                    found = Some(removed.as_str().unwrap().to_string());
+                    break;
+                }
+            }
+        }
+    }
+    found
+}
+
+fn get_flat_mapping(cfg: &WaybarConfig, col: &str) -> Vec<(Option<String>, String)> {
+    let mut mapping = Vec::new();
+    let root = match col { "left" => &cfg.modules_left, "center" => &cfg.modules_center, "right" => &cfg.modules_right, _ => return mapping };
+    
+    fn walk(cfg: &WaybarConfig, modules: &[String], parent: Option<String>, mapping: &mut Vec<(Option<String>, String)>) {
+        for m in modules {
+            mapping.push((parent.clone(), m.clone()));
+            if m.starts_with("group/") {
+                if let Some(def) = cfg.module_definitions.get(m) {
+                    if let Some(children) = def.get("modules").and_then(|v| v.as_array()) {
+                        let child_names: Vec<String> = children.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+                        walk(cfg, &child_names, Some(m.clone()), mapping);
+                    }
+                }
+            }
+        }
+    }
+    walk(cfg, root, None, &mut mapping);
+    mapping
 }

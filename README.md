@@ -4,19 +4,24 @@ A powerful, native GTK4/Libadwaita configuration editor for **Waybar**.
 
 WaybarConf provides a "no-code" experience for ricing your Waybar. It allows you to visually manage modules, edit properties, and create professional color schemes using Material Design 3 extraction from your wallpaper.
 
-<img width="1599" height="899" alt="2025-12-30_20-01_2" src="https://github.com/user-attachments/assets/4ffd0f9a-adff-4d5d-a586-238a2cc0c68a" />
-<img width="1599" height="899" alt="2025-12-30_20-01_1" src="https://github.com/user-attachments/assets/04b37574-9088-41ed-b68a-8b79ccf68ea7" />
-<img width="1599" height="899" alt="2025-12-30_20-01" src="https://github.com/user-attachments/assets/feb3a9be-61ce-4b52-9f9f-1014bc2773ca" />
-
+![WaybarConf Screenshot](https://raw.githubusercontent.com/username/waybarconf/main/screenshot.png) <!-- Note: Replace with actual screenshot link when available -->
 
 ## Features
 
 - **Three-Column Layout**: Mirrors Waybar's `Left`, `Center`, and `Right` module structure.
-- **Drag & Drop**: Easily reorder and relocate modules across columns.
-- **Visual Style Editor**:
+- **Group Manager 📁**: 
+    - Create and nest modules within hierarchical `group/` types.
+    - **Advanced Group Settings**: Enable **Drawer Mode** (slide-out on hover/click), adjust slide duration, and toggle orientation.
+- **Drag & Drop**: Easily reorder and relocate modules across columns and into groups.
+- **Visual Style Editor 🎨**:
+    - **Visual Overrides**: Fine-tune **Border Radius (Pill mode)**, Margin, Padding, and Font Size per module.
     - **Color Pickers**: Live-edit your Waybar's color scheme.
     - **Material Extraction**: Automatically generate palettes from your current wallpaper using `matugen`.
-    - **Layout Sliders**: Fine-tune padding, margins, and spacing without touching CSS.
+- **Animation Engine ⚡**:
+    - **Hover Effects**: Glow, Lift, Bounce, Wobble, Shake, and Blink presets.
+    - **Constant Animations**: Vibrant ROYGBIV Rainbow, Shiver, and Pulse effects.
+    - **Conditional States**: Set percentage thresholds for Battery, CPU, and Memory to trigger animations automatically.
+- **Integrated Icon Picker 💠**: Specialized icon grid for easy property customization.
 - **Integrated Code Tab**:
     - **JSON Editor**: Direct access to raw module configurations.
     - **CSS Overrides**: Persistent manual CSS patching for specific modules.
@@ -35,7 +40,7 @@ WaybarConf provides a "no-code" experience for ricing your Waybar. It allows you
 ### Using the Install Script
 
 ```bash
-git clone https://github.com/ronmurphy/waybarconf.git
+git clone https://github.com/username/waybarconf.git
 cd waybarconf
 chmod +x install.sh
 ./install.sh
