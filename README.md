@@ -4,7 +4,10 @@ A powerful, native GTK4/Libadwaita configuration editor for **Waybar**.
 
 WaybarConf provides a "no-code" experience for ricing your Waybar. It allows you to visually manage modules, edit properties, and create professional color schemes using Material Design 3 extraction from your wallpaper.
 
-![WaybarConf Screenshot](https://raw.githubusercontent.com/username/waybarconf/main/screenshot.png) <!-- Note: Replace with actual screenshot link when available -->
+<img width="1599" height="899" alt="2025-12-30_20-01_2" src="https://github.com/user-attachments/assets/4ffd0f9a-adff-4d5d-a586-238a2cc0c68a" />
+<img width="1599" height="899" alt="2025-12-30_20-01_1" src="https://github.com/user-attachments/assets/04b37574-9088-41ed-b68a-8b79ccf68ea7" />
+<img width="1599" height="899" alt="2025-12-30_20-01" src="https://github.com/user-attachments/assets/feb3a9be-61ce-4b52-9f9f-1014bc2773ca" />
+
 
 ## Features
 
@@ -32,7 +35,7 @@ WaybarConf provides a "no-code" experience for ricing your Waybar. It allows you
 ### Using the Install Script
 
 ```bash
-git clone https://github.com/username/waybarconf.git
+git clone https://github.com/ronmurphy/waybarconf.git
 cd waybarconf
 chmod +x install.sh
 ./install.sh
