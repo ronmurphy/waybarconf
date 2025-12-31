@@ -16,6 +16,46 @@ use adw::{ActionRow, Application, ApplicationWindow, HeaderBar, ViewStack, ViewS
 use gtk::{Box as GtkBox, ListBox, Orientation, Label, ScrolledWindow, TextView, Entry, Switch, Button, ColorButton, FileDialog, FileFilter, StringList, SearchEntry};
 use crate::config::WaybarConfig;
 
+const DEFAULT_CONFIG_JSON: &str = r#"{
+    "modules-left": ["custom/launcher", "wlr/taskbar"],
+    "modules-center": ["clock"],
+    "modules-right": ["cpu", "memory", "pulseaudio", "network", "tray"],
+    "clock": { "format": "{:%I:%M %p}", "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>" },
+    "cpu": { "format": "CPU {usage}%" },
+    "memory": { "format": "MEM {percentage}%" },
+    "pulseaudio": { "format": "{volume}% {icon}", "format-icons": { "default": ["", "", ""] } },
+    "network": { "format-wifi": "", "format-ethernet": "󰈀", "format-disconnected": "󰤮" },
+    "custom/launcher": { "format": "", "on-click": "rofi -show drun" }
+}"#;
+
+const DEFAULT_STYLE_VARS: &str = r#"/* WaybarConf Style Variables */
+@define-color bar_bg #1e1e2e;
+@define-color bar_fg #cdd6f4;
+@define-color module_bg #313244;
+@define-color module_fg #cdd6f4;
+@define-color hover_bg #45475a;
+@define-color hover_fg #f5e0dc;
+@define-color border_color #585b70;
+
+* {
+    --padding_top: 4px;
+    --padding_bottom: 4px;
+    --margin_left: 4px;
+    --margin_right: 4px;
+    --spacing: 8px;
+}
+"#;
+
+const DEFAULT_LAYOUT_CSS: &str = r#"/* WaybarConf Layout CSS */
+#clock, #cpu, #memory, #pulseaudio, #network, #tray, #custom-launcher {
+    padding: var(--padding_top) var(--margin_right) var(--padding_bottom) var(--margin_left);
+    margin: 0 var(--spacing);
+    background: @module_bg;
+    color: @module_fg;
+    border-radius: 8px;
+}
+"#;
+
 fn main() {
     let application = Application::builder()
         .application_id("com.github.waybarconf")
@@ -34,19 +74,11 @@ struct StyleConfig {
 
 impl StyleConfig {
     fn from_file(path: &Path) -> Self {
-        let mut vars = indexmap::IndexMap::new();
-        if let Ok(content) = fs::read_to_string(path) {
-            for line in content.lines() {
-                if line.trim().starts_with("@define-color") {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() >= 3 {
-                        let name = parts[1].to_string();
-                        let value = parts[2].trim_matches(';').to_string();
-                        vars.insert(name, value);
-                    }
-                }
-            }
-        }
+        let vars = if let Ok(content) = fs::read_to_string(path) {
+            parse_style_vars(&content)
+        } else {
+            indexmap::IndexMap::new()
+        };
         Self { vars, path: path.to_path_buf() }
     }
 
@@ -93,6 +125,43 @@ fn detect_wallpaper() -> Option<String> {
     None
 }
 
+fn get_waybar_config_path() -> Option<PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    let xdg_config = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(home).join(".config"));
+    
+    let paths = vec![
+        xdg_config.join("waybar/config.jsonc"),
+        xdg_config.join("waybar/config"),
+    ];
+    
+    paths.into_iter().find(|p| p.exists())
+}
+
+fn parse_style_vars(content: &str) -> indexmap::IndexMap<String, String> {
+    let mut vars = indexmap::IndexMap::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with("@define-color") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                let name = parts[1].to_string();
+                let value = parts[2].trim_matches(';').to_string();
+                vars.insert(name, value);
+            }
+        } else if line.starts_with("--") {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 2 {
+                let name = parts[0].trim_matches('-').trim().to_string();
+                let value = parts[1].trim_matches(';').trim().to_string();
+                vars.insert(name, value);
+            }
+        }
+    }
+    vars
+}
+
 fn apply_matugen(path: &str, scheme_type: &str, style_rc: Rc<RefCell<StyleConfig>>) -> Result<(), String> {
     let output = Command::new("matugen")
         .args(["image", path, "-j", "hex", "--type", scheme_type])
@@ -126,17 +195,15 @@ fn apply_matugen(path: &str, scheme_type: &str, style_rc: Rc<RefCell<StyleConfig
 }
 
 fn build_ui(app: &Application) {
-    let base_path = Path::new("example Waybar Config");
-    let config_path = base_path.join("config.jsonc");
-    let style_path = base_path.join("colors/wallpaper.css");
-    let layout_css_path = base_path.join("layouts/outline.css");
-
-    let waybar_config = WaybarConfig::from_file(config_path.to_str().unwrap()).unwrap_or_else(|_| WaybarConfig {
-        modules_left: vec![], modules_center: vec![], modules_right: vec![],
-        module_definitions: indexmap::IndexMap::new(),
-    });
+    let waybar_config: WaybarConfig = serde_json::from_str(DEFAULT_CONFIG_JSON).unwrap();
     let config_rc = Rc::new(RefCell::new(waybar_config));
-    let style_rc = Rc::new(RefCell::new(StyleConfig::from_file(&style_path)));
+    
+    let style_vars = parse_style_vars(DEFAULT_STYLE_VARS);
+    let default_style_path = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".config/waybar/colors/wallpaper.css");
+    let style_rc = Rc::new(RefCell::new(StyleConfig { vars: style_vars, path: default_style_path }));
+    
+    // In-memory paths for session (real paths only used on Apply/Save)
+    let layout_css_path = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".config/waybar/style.css");
     
     let selected_module_state = Rc::new(RefCell::new(None::<(String, String)>));
 
@@ -414,12 +481,13 @@ fn build_ui(app: &Application) {
             code_page.append(&css_label);
             let css_view = TextView::builder().margin_top(8).margin_bottom(8).margin_start(8).margin_end(8).build();
             let mut css_content = String::new();
-            if let Ok(full_css) = fs::read_to_string(&layout_css_path) {
-                let id = format!("#{}", mod_name.replace("/", "-"));
-                if let Some(start) = full_css.find(&id) {
-                    if let Some(end) = full_css[start..].find('}') { css_content = full_css[start..start + end + 1].to_string(); }
-                }
+            let full_css = fs::read_to_string(&layout_css_path).unwrap_or_else(|_| DEFAULT_LAYOUT_CSS.to_string());
+            let id = format!("#{}", mod_name.replace("/", "-"));
+            if let Some(start) = full_css.find(&id) {
+                if let Some(end) = full_css[start..].find('}') { css_content = full_css[start..start + end + 1].to_string(); }
             }
+            if css_content.is_empty() { css_content = format!("{} {{\n    background: @module_bg;\n}}", id); }
+            
             css_view.buffer().set_text(&css_content);
             code_page.append(&ScrolledWindow::builder().child(&css_view).height_request(200).build());
             let css_apply = Button::with_label("Apply CSS Changes");
@@ -427,15 +495,14 @@ fn build_ui(app: &Application) {
             let mod_css = mod_name.clone(); let layout_css_path_inner = layout_css_path.clone(); let toast_css = toast_p.clone();
             css_apply.connect_clicked(move |_| {
                 let text = css_view.buffer().text(&css_view.buffer().start_iter(), &css_view.buffer().end_iter(), false).to_string();
-                if let Ok(full_css) = fs::read_to_string(&layout_css_path_inner) {
-                    let id = format!("#{}", mod_css.replace("/", "-"));
-                    let mut new_full = full_css.clone();
-                    if let Some(start) = full_css.find(&id) {
-                        if let Some(end_rel) = full_css[start..].find('}') { new_full.replace_range(start..start + end_rel + 1, &text); }
-                    } else { new_full.push_str("\n\n"); new_full.push_str(&text); }
-                    let _ = fs::write(&layout_css_path_inner, new_full);
-                    toast_css.add_toast(Toast::new("CSS Applied"));
-                }
+                let full_css = fs::read_to_string(&layout_css_path_inner).unwrap_or_else(|_| DEFAULT_LAYOUT_CSS.to_string());
+                let id = format!("#{}", mod_css.replace("/", "-"));
+                let mut new_full = full_css.clone();
+                if let Some(start) = full_css.find(&id) {
+                    if let Some(end_rel) = full_css[start..].find('}') { new_full.replace_range(start..start + end_rel + 1, &text); }
+                } else { new_full.push_str("\n\n"); new_full.push_str(&text); }
+                let _ = fs::write(&layout_css_path_inner, new_full);
+                toast_css.add_toast(Toast::new("CSS Applied to session"));
             });
             code_page.append(&css_apply);
             drop(config_borrow_orig);
@@ -612,9 +679,17 @@ fn build_ui(app: &Application) {
             let _ = fs::create_dir_all(&waybar_cfg_dir);
             let target_cfg = waybar_cfg_dir.join("config.jsonc");
             let target_style = waybar_cfg_dir.join("colors/wallpaper.css");
+            let target_layout = waybar_cfg_dir.join("style.css");
             let _ = fs::create_dir_all(waybar_cfg_dir.join("colors"));
+            
             let _ = config_rc.borrow().save_to_file(target_cfg.to_str().unwrap());
             let _ = style_rc.borrow().save_to(&target_style);
+            
+            // Save layout CSS as well
+            if !target_layout.exists() {
+                let _ = fs::write(&target_layout, DEFAULT_LAYOUT_CSS);
+            }
+
             let _ = Command::new("pkill").args(["-x", "waybar"]).status();
             let _ = Command::new("waybar").spawn();
             let escaped = glib::markup_escape_text("Applied & Restarted Waybar");
@@ -716,6 +791,66 @@ fn build_ui(app: &Application) {
 
     let win = ApplicationWindow::builder().application(app).title("WaybarConf").default_width(1200).default_height(800).content(&main_box).build();
     *win_rc.borrow_mut() = Some(win.clone());
+
+    // --- Startup Check ---
+    if let Some(local_path) = get_waybar_config_path() {
+        let dialog = MessageDialog::builder()
+            .transient_for(&win)
+            .heading("Welcome to WaybarConf")
+            .body("We found an existing Waybar configuration on your system. Would you like to load it, or start with a template?")
+            .build();
+        
+        dialog.add_response("load", "Load Local Config");
+        dialog.add_response("template", "Use Template");
+        dialog.add_response("blank", "Start Blank");
+        
+        dialog.set_response_appearance("load", adw::ResponseAppearance::Suggested);
+        
+        let config_rc_startup = Rc::clone(&config_rc);
+        let style_rc_startup = Rc::clone(&style_rc);
+        let refresh_ui_startup = Rc::clone(&refresh_rc);
+        let refresh_styles_startup = Rc::clone(&refresh_styles_fn);
+        
+        dialog.connect_response(None, move |d, response| {
+            match response {
+                "load" => {
+                    if let Ok(new_cfg) = WaybarConfig::from_file(&local_path) {
+                        *config_rc_startup.borrow_mut() = new_cfg;
+                        
+                        let home = std::env::var("HOME").unwrap_or_default();
+                        let local_style_path = PathBuf::from(home).join(".config/waybar/colors/wallpaper.css");
+                        if local_style_path.exists() {
+                            *style_rc_startup.borrow_mut() = StyleConfig::from_file(&local_style_path);
+                        }
+                        
+                        refresh_ui_startup();
+                        if let Some(f) = &*refresh_styles_startup.borrow() { f(); }
+                    }
+                }
+                "template" => {
+                    *config_rc_startup.borrow_mut() = serde_json::from_str(DEFAULT_CONFIG_JSON).unwrap();
+                    style_rc_startup.borrow_mut().vars = parse_style_vars(DEFAULT_STYLE_VARS);
+                    refresh_ui_startup();
+                    if let Some(f) = &*refresh_styles_startup.borrow() { f(); }
+                }
+                "blank" => {
+                    *config_rc_startup.borrow_mut() = WaybarConfig {
+                        modules_left: vec![],
+                        modules_center: vec![],
+                        modules_right: vec![],
+                        module_definitions: indexmap::IndexMap::new(),
+                    };
+                    style_rc_startup.borrow_mut().vars = indexmap::IndexMap::new();
+                    refresh_ui_startup();
+                    if let Some(f) = &*refresh_styles_startup.borrow() { f(); }
+                }
+                _ => {}
+            }
+            d.close();
+        });
+        dialog.present();
+    }
+
     win.present();
 }
 
