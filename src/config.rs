@@ -18,6 +18,15 @@ pub struct WaybarConfig {
     pub module_definitions: IndexMap<String, Value>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WaybarProfile {
+    pub config: WaybarConfig,
+    #[serde(default)]
+    pub style_vars: IndexMap<String, String>,
+    #[serde(default)]
+    pub layout_css: String,
+}
+
 impl WaybarConfig {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
@@ -33,6 +42,31 @@ impl WaybarConfig {
         cleaned.modules_right.retain(|m| !m.is_empty());
         
         let json = serde_json::to_string_pretty(&cleaned)?;
+        fs::write(path, json)?;
+        Ok(())
+    }
+}
+
+impl WaybarProfile {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        let content = fs::read_to_string(&path)?;
+        
+        // Try to parse as WaybarProfile first
+        if let Ok(profile) = serde_json::from_str::<WaybarProfile>(&content) {
+            return Ok(profile);
+        }
+        
+        // Fallback: try to parse as WaybarConfig and wrap it
+        let config = WaybarConfig::from_file(path)?;
+        Ok(WaybarProfile {
+            config,
+            style_vars: IndexMap::new(),
+            layout_css: String::new(),
+        })
+    }
+
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
+        let json = serde_json::to_string_pretty(self)?;
         fs::write(path, json)?;
         Ok(())
     }

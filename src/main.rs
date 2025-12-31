@@ -14,7 +14,7 @@ use std::process::Command;
 use adw::prelude::*;
 use adw::{ActionRow, Application, ApplicationWindow, HeaderBar, ViewStack, ViewSwitcher, PreferencesGroup, ToastOverlay, Toast, MessageDialog, ComboRow};
 use gtk::{Box as GtkBox, ListBox, Orientation, Label, ScrolledWindow, TextView, Entry, Switch, Button, ColorButton, FileDialog, FileFilter, StringList, SearchEntry};
-use crate::config::WaybarConfig;
+use crate::config::{WaybarConfig, WaybarProfile};
 
 const DEFAULT_CONFIG_JSON: &str = r#"{
     "modules-left": ["custom/launcher", "wlr/taskbar"],
@@ -202,8 +202,9 @@ fn build_ui(app: &Application) {
     let default_style_path = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".config/waybar/colors/wallpaper.css");
     let style_rc = Rc::new(RefCell::new(StyleConfig { vars: style_vars, path: default_style_path }));
     
-    // In-memory paths for session (real paths only used on Apply/Save)
-    let layout_css_path = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".config/waybar/style.css");
+    // Use a temporary path for session CSS
+    let layout_css_path = std::env::temp_dir().join("waybarconf_style.css");
+    let _ = fs::write(&layout_css_path, DEFAULT_LAYOUT_CSS);
     
     let selected_module_state = Rc::new(RefCell::new(None::<(String, String)>));
 
@@ -621,22 +622,36 @@ fn build_ui(app: &Application) {
 
     save_profile_btn.connect_clicked({
         let config_rc = Rc::clone(&config_rc);
+        let style_rc = Rc::clone(&style_rc);
+        let layout_css_path = layout_css_path.clone();
         let win_rc = Rc::clone(&win_rc);
         let t_save = t_overlay.clone();
         move |_| {
             let filter = FileFilter::new();
             filter.add_pattern("*.wc"); filter.set_name(Some("Waybar Config Profile (*.wc)"));
             let dialog = FileDialog::builder().title("Save Profile").default_filter(&filter).build();
+            
             let config_rc = Rc::clone(&config_rc);
+            let style_rc = Rc::clone(&style_rc);
+            let layout_css_path = layout_css_path.clone();
             let t_s = t_save.clone();
+            
             if let Some(win) = win_rc.borrow().as_ref() {
                 dialog.save(Some(win), gio::Cancellable::NONE, move |res| {
                     if let Ok(file) = res {
                         if let Some(path) = file.path() {
                             let mut path = path.to_path_buf();
                             if path.extension().and_then(|s| s.to_str()) != Some("wc") { path.set_extension("wc"); }
-                            let _ = config_rc.borrow().save_to_file(path.to_str().unwrap());
-                            t_s.add_toast(Toast::new("Profile Saved"));
+                            
+                            let profile = WaybarProfile {
+                                config: config_rc.borrow().clone(),
+                                style_vars: style_rc.borrow().vars.clone(),
+                                layout_css: fs::read_to_string(&layout_css_path).unwrap_or_else(|_| DEFAULT_LAYOUT_CSS.to_string()),
+                            };
+                            
+                            if let Ok(_) = profile.save_to_file(path.to_str().unwrap()) {
+                                t_s.add_toast(Toast::new("Profile Saved"));
+                            }
                         }
                     }
                 });
@@ -646,20 +661,35 @@ fn build_ui(app: &Application) {
 
     load_profile_btn.connect_clicked({
         let config_rc = Rc::clone(&config_rc);
+        let style_rc = Rc::clone(&style_rc);
+        let layout_css_path = layout_css_path.clone();
         let win_rc = Rc::clone(&win_rc);
         let refresh_rc = Rc::clone(&refresh_rc);
+        let refresh_styles_fn = Rc::clone(&refresh_styles_fn);
         let t_load = t_overlay.clone();
+        
         move |_| {
             let filter = FileFilter::new(); filter.add_pattern("*.wc");
             let dialog = FileDialog::builder().title("Load Profile").default_filter(&filter).build();
-            let config_rc = Rc::clone(&config_rc); let refresh_rc = Rc::clone(&refresh_rc); let t_l = t_load.clone();
+            
+            let config_rc = Rc::clone(&config_rc);
+            let style_rc = Rc::clone(&style_rc);
+            let layout_css_path = layout_css_path.clone();
+            let refresh_rc = Rc::clone(&refresh_rc);
+            let refresh_styles_fn = Rc::clone(&refresh_styles_fn);
+            let t_l = t_load.clone();
+            
             if let Some(win) = win_rc.borrow().as_ref() {
                 dialog.open(Some(win), gio::Cancellable::NONE, move |res| {
                     if let Ok(file) = res {
                         if let Some(path) = file.path() {
-                            if let Ok(new_cfg) = WaybarConfig::from_file(path.to_str().unwrap()) {
-                                *config_rc.borrow_mut() = new_cfg;
+                            if let Ok(profile) = WaybarProfile::from_file(path.to_str().unwrap()) {
+                                *config_rc.borrow_mut() = profile.config;
+                                style_rc.borrow_mut().vars = profile.style_vars;
+                                let _ = fs::write(&layout_css_path, profile.layout_css);
+                                
                                 refresh_rc();
+                                if let Some(f) = &*refresh_styles_fn.borrow() { f(); }
                                 t_l.add_toast(Toast::new("Profile Loaded"));
                             }
                         }
@@ -672,6 +702,7 @@ fn build_ui(app: &Application) {
     apply_btn.connect_clicked({
         let config_rc = Rc::clone(&config_rc);
         let style_rc = Rc::clone(&style_rc);
+        let layout_css_path_apply = layout_css_path.clone();
         let t_apply = t_overlay.clone();
         move |_| {
             let home = std::env::var("HOME").unwrap_or_default();
@@ -685,8 +716,10 @@ fn build_ui(app: &Application) {
             let _ = config_rc.borrow().save_to_file(target_cfg.to_str().unwrap());
             let _ = style_rc.borrow().save_to(&target_style);
             
-            // Save layout CSS as well
-            if !target_layout.exists() {
+            // Persist session CSS to the real Waybar path
+            if let Ok(css) = fs::read_to_string(&layout_css_path_apply) {
+                let _ = fs::write(&target_layout, css);
+            } else {
                 let _ = fs::write(&target_layout, DEFAULT_LAYOUT_CSS);
             }
 
@@ -808,6 +841,7 @@ fn build_ui(app: &Application) {
         
         let config_rc_startup = Rc::clone(&config_rc);
         let style_rc_startup = Rc::clone(&style_rc);
+        let layout_css_path_startup = layout_css_path.clone();
         let refresh_ui_startup = Rc::clone(&refresh_rc);
         let refresh_styles_startup = Rc::clone(&refresh_styles_fn);
         
@@ -818,9 +852,16 @@ fn build_ui(app: &Application) {
                         *config_rc_startup.borrow_mut() = new_cfg;
                         
                         let home = std::env::var("HOME").unwrap_or_default();
-                        let local_style_path = PathBuf::from(home).join(".config/waybar/colors/wallpaper.css");
+                        let local_style_path = PathBuf::from(home.clone()).join(".config/waybar/colors/wallpaper.css");
                         if local_style_path.exists() {
                             *style_rc_startup.borrow_mut() = StyleConfig::from_file(&local_style_path);
+                        }
+                        
+                        let local_layout_path = PathBuf::from(home).join(".config/waybar/style.css");
+                        if local_layout_path.exists() {
+                            if let Ok(css) = fs::read_to_string(&local_layout_path) {
+                                let _ = fs::write(&layout_css_path_startup, css);
+                            }
                         }
                         
                         refresh_ui_startup();
@@ -830,6 +871,7 @@ fn build_ui(app: &Application) {
                 "template" => {
                     *config_rc_startup.borrow_mut() = serde_json::from_str(DEFAULT_CONFIG_JSON).unwrap();
                     style_rc_startup.borrow_mut().vars = parse_style_vars(DEFAULT_STYLE_VARS);
+                    let _ = fs::write(&layout_css_path_startup, DEFAULT_LAYOUT_CSS);
                     refresh_ui_startup();
                     if let Some(f) = &*refresh_styles_startup.borrow() { f(); }
                 }
@@ -841,6 +883,7 @@ fn build_ui(app: &Application) {
                         module_definitions: indexmap::IndexMap::new(),
                     };
                     style_rc_startup.borrow_mut().vars = indexmap::IndexMap::new();
+                    let _ = fs::write(&layout_css_path_startup, "");
                     refresh_ui_startup();
                     if let Some(f) = &*refresh_styles_startup.borrow() { f(); }
                 }
