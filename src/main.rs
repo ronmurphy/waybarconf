@@ -37,19 +37,12 @@ const DEFAULT_STYLE_VARS: &str = r#"/* WaybarConf Style Variables */
 @define-color hover_fg #f5e0dc;
 @define-color border_color #585b70;
 
-* {
-    --padding_top: 4px;
-    --padding_bottom: 4px;
-    --margin_left: 4px;
-    --margin_right: 4px;
-    --spacing: 8px;
-}
 "#;
 
 const DEFAULT_LAYOUT_CSS: &str = r#"/* WaybarConf Layout CSS */
-#clock, #cpu, #memory, #pulseaudio, #network, #tray, [id^="custom-"] {
-    padding: var(--padding_top) var(--margin_right) var(--padding_bottom) var(--margin_left);
-    margin: 0 var(--spacing);
+#clock, #cpu, #battery, #backlight, #pulseaudio, #network, #memory, #tray, #idle_inhibitor, #bluetooth, #cava, #disk, #temperature, #upower, #wireplumber, #mpris, #mpd, #backlight-slider, #pulseaudio-slider, #power-profiles-daemon, #privacy, #load, #jack, #sndio, #systemd-failed-units, #user, .user, .cpu, .load, #cffi, #gamemode, #inhibitor, #image, #keyboard-state, #workspaces, #window, #mode, #scratchpad, #tags, #layout, #language, #submap, #taskbar, .custom {
+    padding: 4px 8px;
+    margin: 0 4px;
     background: @module_bg;
     color: @module_fg;
     border-radius: 8px;
@@ -364,6 +357,9 @@ fn build_ui(app: &Application) {
     
     let load_profile_btn = Button::with_label("Load Profile");
     header.pack_start(&load_profile_btn);
+
+    let load_preset_btn = Button::with_label("Load Preset");
+    header.pack_start(&load_preset_btn);
     
     let apply_btn = Button::with_label("Apply");
     apply_btn.add_css_class("accent");
@@ -423,7 +419,14 @@ fn build_ui(app: &Application) {
 
     let module_options = vec![
         "clock", "battery", "cpu", "memory", "network", "pulseaudio", "backlight", "tray",
-        "keyboard-state", "wlr/taskbar", "idle_inhibitor", "custom/new-module"
+        "keyboard-state", "wlr/taskbar", "idle_inhibitor", "bluetooth", "cava", "disk", "mpd", "mpris",
+        "hyprland/workspaces", "hyprland/window", "hyprland/submap", "hyprland/language",
+        "sway/workspaces", "sway/window", "sway/mode", "sway/scratchpad",
+        "temperature", "upower", "wireplumber", "image", "gamemode", "inhibitor",
+        "backlight/slider", "pulseaudio/slider", "power-profiles-daemon", "niri/workspaces",
+        "niri/window", "privacy", "load", "river/tags", "river/window", "river/mode",
+        "river/layout", "dwl/tags", "dwl/window", "jack", "sndio", "systemd-failed-units",
+        "user", "cffi", "custom/new-module"
     ];
 
     let update_properties_fn = Rc::new(RefCell::new(None::<Box<dyn Fn(String)>>));
@@ -948,13 +951,15 @@ fn build_ui(app: &Application) {
 
             props_page.append(&anim_group);
 
-            // --- Module States & Thresholds (Battery, CPU, Memory) ---
-            if ["battery", "cpu", "memory"].contains(&mod_name.as_str()) {
+            // --- Module States & Thresholds (Battery, CPU, Memory, Temperature, Disk, Load) ---
+            if ["battery", "cpu", "memory", "temperature", "disk", "load"].contains(&mod_name.as_str()) {
                 let state_group = PreferencesGroup::new();
                 state_group.set_title("Module States and Thresholds");
                 
                 let states_to_add = match mod_name.as_str() {
                     "battery" => vec![("Warning", "warning", 30.0), ("Critical", "critical", 15.0), ("Full", "full", 100.0)],
+                    "temperature" => vec![("Critial", "critical", 80.0)],
+                    "disk" => vec![("Warning", "warning", 80.0), ("Critical", "critical", 90.0)],
                     _ => vec![("Warning", "warning", 70.0), ("Critical", "critical", 90.0)],
                 };
 
@@ -1273,6 +1278,71 @@ fn build_ui(app: &Application) {
         }
     });
 
+    load_preset_btn.connect_clicked({
+        let config_rc = Rc::clone(&config_rc);
+        let style_rc = Rc::clone(&style_rc);
+        let layout_css_path = layout_css_path.clone();
+        let win_rc = Rc::clone(&win_rc);
+        let refresh_rc = Rc::clone(&refresh_rc);
+        let refresh_styles_fn = Rc::clone(&refresh_styles_fn);
+        let t_load = t_overlay.clone();
+        
+        move |_| {
+            let filter = FileFilter::new(); filter.add_pattern("*.wc");
+            let mut dialog_builder = FileDialog::builder().title("Load Preset").default_filter(&filter);
+            
+            // Try to find the presets directory
+            let exe_path = std::env::current_exe().unwrap_or_default();
+            let exe_dir = exe_path.parent().unwrap_or(Path::new("."));
+            let mut presets_path = PathBuf::from("presets");
+            if !presets_path.exists() {
+                // Try sibling to exe (for dev)
+                presets_path = exe_dir.join("presets");
+                if !presets_path.exists() {
+                    // Try project root (for dev)
+                    presets_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()).join("presets");
+                }
+                if !presets_path.exists() {
+                    // Try installed data directory
+                    let home = std::env::var("HOME").unwrap_or_default();
+                    presets_path = PathBuf::from(home).join(".local/share/waybarconf/presets");
+                }
+            }
+
+            if presets_path.exists() {
+                let file = gio::File::for_path(&presets_path);
+                dialog_builder = dialog_builder.initial_folder(&file);
+            }
+
+            let dialog = dialog_builder.build();
+            
+            let config_rc = Rc::clone(&config_rc);
+            let style_rc = Rc::clone(&style_rc);
+            let layout_css_path = layout_css_path.clone();
+            let refresh_rc = Rc::clone(&refresh_rc);
+            let refresh_styles_fn = Rc::clone(&refresh_styles_fn);
+            let t_l = t_load.clone();
+            
+            if let Some(win) = win_rc.borrow().as_ref() {
+                dialog.open(Some(win), gio::Cancellable::NONE, move |res| {
+                    if let Ok(file) = res {
+                        if let Some(path) = file.path() {
+                            if let Ok(profile) = WaybarProfile::from_file(path.to_str().unwrap()) {
+                                *config_rc.borrow_mut() = profile.config;
+                                style_rc.borrow_mut().vars = profile.style_vars;
+                                let _ = fs::write(&layout_css_path, profile.layout_css);
+                                
+                                refresh_rc();
+                                if let Some(f) = &*refresh_styles_fn.borrow() { f(); }
+                                t_l.add_toast(Toast::new("Preset Loaded"));
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    });
+
     apply_btn.connect_clicked({
         let config_rc = Rc::clone(&config_rc);
         let style_rc = Rc::clone(&style_rc);
@@ -1404,7 +1474,36 @@ fn build_ui(app: &Application) {
             r.connect_activated(move |_| {
                 let mut cfg = cfg_pop.borrow_mut();
                 match cid_pop.as_str() { "left" => cfg.modules_left.push(opt_s.clone()), "center" => cfg.modules_center.push(opt_s.clone()), "right" => cfg.modules_right.push(opt_s.clone()), _ => {} }
-                if !cfg.module_definitions.contains_key(&opt_s) { cfg.module_definitions.insert(opt_s.clone(), serde_json::json!({})); }
+                if !cfg.module_definitions.contains_key(&opt_s) {
+                    let default_props = match opt_s.as_str() {
+                        "temperature" => serde_json::json!({ "format": "{temperatureC}°C {icon}", "format-icons": ["", "", "", "", ""] }),
+                        "disk" => serde_json::json!({ "format": "{percentage_used}% 󰋊", "path": "/" }),
+                        "bluetooth" => serde_json::json!({ "format": " {status}", "format-connected": " {device_alias}", "format-connected-battery": " {device_alias} {device_battery_percentage}%" }),
+                        "network" => serde_json::json!({ "format-wifi": " {essid} ({signalStrength}%)", "format-ethernet": "󰈀 {ifname}", "format-disconnected": "󰤮 Disconnected" }),
+                        "wireplumber" => serde_json::json!({ "format": "{volume}% {icon}", "format-muted": "󰝟", "format-icons": ["", "", ""] }),
+                        "pulseaudio" => serde_json::json!({ "format": "{volume}% {icon}", "format-muted": "󰝟", "format-icons": { "default": ["", "", ""] } }),
+                        "battery" => serde_json::json!({ "format": "{capacity}% {icon}", "format-icons": ["", "", "", "", ""] }),
+                        "hyprland/workspaces" | "sway/workspaces" => serde_json::json!({ "format": "{name}" }),
+                        "mpris" => serde_json::json!({ "format": "{player_icon} {title}", "player-icons": { "default": "" } }),
+                        "clock" => serde_json::json!({ "format": "{:%I:%M %p}", "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>" }),
+                        "cpu" => serde_json::json!({ "format": "CPU {usage}%" }),
+                        "memory" => serde_json::json!({ "format": "MEM {percentage}%" }),
+                        "backlight/slider" => serde_json::json!({ "min": 0, "max": 100, "orientation": "horizontal" }),
+                        "pulseaudio/slider" => serde_json::json!({ "min": 0, "max": 140, "orientation": "horizontal" }),
+                        "power-profiles-daemon" => serde_json::json!({ "format": "{icon}", "format-icons": {"default": "", "performance": "", "balanced": "", "power-saver": ""} }),
+                        "privacy" => serde_json::json!({ "icon-spacing": 4, "icon-size": 18, "transition-duration": 250, "modules": [{"type": "screenshare"}, {"type": "audio-out"}, {"type": "audio-in"}] }),
+                        "systemd-failed-units" => serde_json::json!({ "hide-on-ok": true, "format": "✗ {nr_failed}", "format-ok": "✓" }),
+                        "jack" => serde_json::json!({ "format": "DSP {}%", "format-xrun": "{xruns} xruns", "interval": 5 }),
+                        "load" => serde_json::json!({ "interval": 10, "format": "Load {load1}" }),
+                        "user" => serde_json::json!({ "format": "{user}", "interval": 60 }),
+                        "dwl/tags" | "river/tags" => serde_json::json!({ "num-tags": 9 }),
+                        "niri/workspaces" => serde_json::json!({ "format": "{icon}" }),
+                        "cffi" => serde_json::json!({ "module_path": "/path/to/lib.so" }),
+                        "sndio" => serde_json::json!({ "format": "󰓃 {volume}%" }),
+                        _ => serde_json::json!({}),
+                    };
+                    cfg.module_definitions.insert(opt_s.clone(), default_props);
+                }
                 drop(cfg); ref_pop(); p_close.popdown();
             });
             pop_list.append(&r);
@@ -1423,7 +1522,7 @@ fn build_ui(app: &Application) {
 
         pop_content.append(&ScrolledWindow::builder().child(&pop_list).max_content_height(300).propagate_natural_height(true).build());
         popover.set_child(Some(&pop_content));
-        let p_popup = popover.clone(); add_btn.connect_clicked(move |_| p_popup.popup()); popover.set_parent(&add_btn); h.append(&add_btn);
+        let p_popup = popover.clone(); add_btn.connect_clicked(move |_| p_popup.popup()); popover.set_parent(&add_btn);
         let del_btn = Button::builder().icon_name("user-trash-symbolic").has_frame(false).build();
         let cfg_del = Rc::clone(&config_rc); let ref_del = Rc::clone(&refresh_rc); let cid_del = col_id.to_string(); let sel_del = Rc::clone(&sel_state);
         del_btn.connect_clicked(move |_| {
@@ -1540,10 +1639,33 @@ fn create_module_row(n: &str, depth: u32) -> ActionRow {
                    "network" => "network-wireless-symbolic", 
                    "pulseaudio" => "audio-volume-high-symbolic", 
                    "backlight" => "display-brightness-symbolic", 
-                   "tray" => "panel-show-symbolic", 
+                   "tray" => "panel-show-symbolic",
+                   "bluetooth" => "bluetooth-active-symbolic",
+                   "disk" => "drive-harddisk-symbolic",
+                   "mpd" => "audio-x-generic-symbolic",
+                   "mpris" => "media-playback-start-symbolic",
+                   "hyprland/workspaces" | "sway/workspaces" | "wlr/workspaces" | "niri/workspaces" | "river/tags" | "dwl/tags" => "view-grid-symbolic",
+                   "hyprland/window" | "sway/window" | "wlr/window" | "niri/window" | "river/window" | "dwl/window" => "window-new-symbolic",
+                   "temperature" => "sensors-temperature-symbolic",
+                   "upower" => "battery-full-symbolic",
+                   "wireplumber" => "audio-card-symbolic",
+                   "image" => "image-x-generic-symbolic",
+                   "gamemode" => "input-gaming-symbolic",
+                   "keyboard-state" => "input-keyboard-symbolic",
+                   "idle_inhibitor" => "eye-not-looking-symbolic",
+                   "backlight/slider" => "display-brightness-symbolic",
+                   "pulseaudio/slider" | "sndio" => "audio-volume-high-symbolic",
+                   "power-profiles-daemon" => "power-profile-balanced-symbolic",
+                   "privacy" => "security-high-symbolic",
+                   "load" => "chip-symbolic",
+                   "river/layout" => "view-list-symbolic",
+                   "systemd-failed-units" => "software-update-available-symbolic",
+                   "user" => "avatar-default-symbolic",
                    _ => "extension-symbolic" 
                } };
-    let row = ActionRow::builder().title(n).icon_name(icon).activatable(true).build();
+    let image = gtk::Image::from_icon_name(icon);
+    let row = ActionRow::builder().title(n).activatable(true).build();
+    row.add_prefix(&image);
     if depth > 0 {
         row.set_margin_start((depth * 20) as i32);
         row.add_css_class("nested-row");

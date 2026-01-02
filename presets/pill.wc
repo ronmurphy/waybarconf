@@ -1,0 +1,233 @@
+{
+  "config": {
+    "layer": "top",
+    "position": "top",
+    "height": 38,
+    "spacing": 0,
+    "margin-top": 0,
+    "margin-bottom": 0,
+    "reload_style_on_change": true,
+    "modules-left": [
+        "custom/launcher",
+        "custom/chrome",
+        "custom/terminal",
+        "custom/code",
+        "custom/music",
+        "custom/thunar",
+        "custom/todo"
+    ],
+    "modules-center": [
+        "wlr/taskbar"
+    ],
+    "modules-right": [
+        "keyboard-state",
+        "custom/countdown",
+        "memory",
+        "group/group-tools",
+        "pulseaudio",
+        "backlight",
+        "network",
+        "tray",
+        "clock",
+        "custom/power"
+    ],
+    "wlr/taskbar": {
+        "format": "{icon}",
+        "icon-size": 22,
+        "icon-theme": "Papirus",
+        "tooltip-format": "{title:.50}",
+        "on-click": "minimize-raise",
+        "on-click-middle": "close",
+        "on-click-right": "fullscreen"
+    },
+    "keyboard-state": {
+        "capslock": true,
+        "format": "{icon}",
+        "format-icons": {
+            "locked": " Caps ",
+            "unlocked": ""
+        }
+    },
+    "idle_inhibitor": {
+        "format": "{icon}",
+        "format-icons": {
+            "activated": "",
+            "deactivated": ""
+        }
+    },
+    "tray": {
+        "icon-size": 20,
+        "spacing": 10,
+        "show-passive-items": true
+    },
+    "clock": {
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "format-alt": "{:%d-%m-%Y}",
+        "format": "{:%I:%M %p}"
+    },
+    "backlight": {
+        "device": "acpi_video0",
+        "tooltip": true,
+        "tooltip-format": "Nightlight",
+        "format": "{percent}% {icon}",
+        "format-icons": ["", ""],
+        "on-scroll-up": "brightnessctl s +5%",
+        "on-scroll-down": "brightnessctl s 5%-",
+        "on-click": "killall rofi || bash ~/.config/rofi/nightlight/night-light.sh"
+    },
+    "pulseaudio": {
+        "format": "{volume}% {icon}",
+        "tooltip": true,
+        "tooltip-format": "Nowplaying",
+        "format-bluetooth": "{volume}% {icon}",
+        "format-bluetooth-muted": "{icon} {format_source}",
+        "format-muted": " {format_source}",
+        "format-source": "",
+        "format-source-muted": "",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": ["", "", ""]
+        },
+        "on-click": "killall rofi || bash ~/.config/rofi/nowplaying/nowplaying.sh 2>/dev/null",
+        "on-click-right": "pavucontrol",
+        "on-click-middle": "bash ~/.config/waybar/scripts/mute.sh 2>/dev/null"
+    },
+    "memory": {
+        "interval": 30,
+        "format": "<big>󰍛</big>\u00a0\u00a0{percentage}%",
+        "tooltip-format": "Memory: {used:0.1f}G/{total:0.1f}G\nPercentage: {percentage}% used\nAvailable: {avail}G\nSwap: {swapUsed:0.1f}G/{swapTotal:0.1f}G",
+        "on-click": "xfce4-taskmanager"
+    },
+    "network": {
+        "format-wifi": "{icon}",
+        "format-ethernet": "",
+        "format-linked": "",
+        "format-disconnected": "󱛅 ",
+        "format-disabled": "󱚼 ",
+        "tooltip-format": "{ifname} via {gwaddr}",
+        "tooltip-format-wifi": "  {essid} ({signalStrength}%)\nIP: {ipaddr}\nFreq: {frequency}GHz",
+        "tooltip-format-ethernet": "  {ifname}\nIP: {ipaddr}/{cidr}",
+        "tooltip-format-disconnected": "Disconnected",
+        "format-icons": ["󰤯 ", "󰤟 ", "󰤢 ", "󰤥 ", "󰤨 "],
+        "on-click": "killall rofi || bash ~/.config/rofi/wifi/wifi.sh",
+        "on-click-right": "nm-connection-editor"
+    },
+    "custom/todo": {
+        "format": "\u00a0{}",
+        "exec": "~/.config/waybar/scripts/todo/todo.sh",
+        "on-double-click": "~/.config/waybar/scripts/todo/todo.sh mark_done",
+        "on-click-right": "~/.config/waybar/scripts/todo/todo.sh open_tui",
+        "on-click-middle": "~/.config/waybar/scripts/todo/todo.sh middle_click",
+        "return-type": "json",
+        "interval": 5,
+        "tooltip": true
+    },
+    "custom/countdown": {
+        "exec": "~/.config/waybar/scripts/countdown/countdown.sh",
+        "return-type": "json",
+        "format": "{}",
+        "interval": 3600,
+        "on-click-right": "foot bash ~/.config/waybar/scripts/countdown/countdown.sh interactive",
+        "on-scroll-up": "~/.config/waybar/scripts/countdown/countdown.sh scroll-up",
+        "on-scroll-down": "~/.config/waybar/scripts/countdown/countdown.sh scroll-down"
+    },
+    "custom/launcher": {
+        "format": "<big>\u00a0</big>",
+        "tooltip": true,
+        "tooltip-format": "Menu\nRight click to customize",
+        "on-click": "killall rofi 2>/dev/null || bash ~/.config/rofi/launchers/launcher.sh 2>/dev/null",
+        "on-click-right": "killall rofi 2>/dev/null || bash ~/.config/waybar/scripts/customize.sh 2>/dev/null"
+    },
+    "custom/chrome": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Browser",
+        "on-click": "firefox",
+        "on-click-right": "chromium",
+        "on-click-middle": "brave"
+    },
+    "custom/terminal": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Terminal",
+        "on-click": "kitty",
+        "on-click-right": "foot"
+    },
+    "custom/code": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Code Editor",
+        "on-click": "antigravity"
+    },
+    "custom/music": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Music",
+        "on-click": "env LD_PRELOAD=/usr/lib/spotify-adblock.so spotify --uri=%U >/dev/null 2>&1 &",
+        "on-click-right": "g4music"
+    },
+    "custom/thunar": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "File Manager",
+        "on-click": "thunar"
+    },
+    "group/group-tools": {
+        "orientation": "inherit",
+        "drawer": {
+            "transition-duration": 500,
+            "children-class": "other-apps",
+            "transition-left-to-right": false
+        },
+        "modules": [
+            "custom/clip",
+            "custom/snip",
+            "idle_inhibitor",
+            "custom/theme-switcher"
+        ]
+    },
+    "custom/clip": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Clipboard",
+        "on-click": "killall rofi 2>/dev/null || bash ~/.config/rofi/clipboard/clipboard.sh 2>/dev/null"
+    },
+    "custom/theme-switcher": {
+        "format": "<big>󰔎\u00a0</big>",
+        "tooltip": true,
+        "tooltip-format": "Light/Dark",
+        "on-click": "bash ~/.config/waybar/scripts/toggle-theme.sh 2>/dev/null"
+    },
+    "custom/snip": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Screenshot",
+        "on-click": "killall rofi 2>/dev/null || bash ~/.config/rofi/screen-tool/screen-tool.sh 2>/dev/null"
+    },
+    "custom/power": {
+        "format": "<b></b>",
+        "tooltip": true,
+        "tooltip-format": "Powermenu",
+        "on-click": "killall rofi 2>/dev/null || bash ~/.config/rofi/powermenu/powermenu.sh 2>/dev/null"
+    }
+  },
+  "style_vars": {
+    "bar_bg": "#121509",
+    "bar_fg": "#e2e4d0",
+    "module_bg": "#394c2a",
+    "module_fg": "#d3eabc",
+    "hover_bg": "#abd600",
+    "hover_fg": "#283500",
+    "border_color": "#909280",
+    "launcher": "@hover_bg",
+    "special": "#454a21",
+    "special_fg": "@module_fg",
+    "power": "#ffb4ab"
+  },
+  "layout_css": "/* Layout: Pill */\n\n* {\n    border: none;\n    border-radius: 0;\n    font-family: \"JetBrains Mono\", \"Iosevka Term\", Inter, Adwaita, Roboto, Helvetica, Arial, sans-serif;\n    font-size: 13px;\n    min-height: 0;\n}\n\nwindow#waybar {\n    background: @bar_bg;\n    color: @bar_fg;\n}\n\ntooltip {\n    background-color: @bar_bg;\n    border: 1px solid @border_color;\n    border-radius: 12px;\n}\n\ntooltip label {\n    color: @bar_fg;\n    text-shadow: none;\n}\n\n/* --- Modules: Base --- */\n#clock,\n#battery,\n#cpu,\n#backlight,\n#pulseaudio,\n#network,\n#memory,\n#tray,\n#idle_inhibitor,\n#bluetooth,\n#cava,\n#disk,\n#temperature,\n#upower,\n#wireplumber,\n#mpris,\n#mpd,\n#backlight-slider,\n#pulseaudio-slider,\n#power-profiles-daemon,\n#privacy,\n#load,\n#jack,\n#sndio,\n#systemd-failed-units,\n#user,\n.user,\n.cpu,\n.load,\n#cffi,\n#gamemode,\n#inhibitor,\n#image,\n#keyboard-state,\n#workspaces,\n#window,\n#mode,\n#scratchpad,\n#tags,\n#layout,\n#language,\n#submap,\n#custom-todo,\n#custom-countdown,\n#custom-clip,\n#custom-snip,\n#custom-taskmanager,\n#custom-theme-switcher,\n#custom-power,\n#custom-launcher,\n.custom {\n    background: @module_bg;\n    color: @module_fg;\n    padding: 0px 13px;\n    margin: 4px 2px;\n    border-radius: 99px;\n    transition: all 0.3s ease;\n}\n\n/* --- Modules: Strip --- */\n#custom-chrome,\n#custom-terminal,\n#custom-code,\n#custom-music,\n#custom-thunar {\n    background: @module_bg;\n    color: @module_fg;\n    padding: 0px 13px;\n    margin-top: 4px;\n    margin-bottom: 4px;\n    border-radius: 0;\n    transition: all 0.3s ease;\n}\n\n#custom-chrome {\n    margin-left: 4px;\n    border-radius: 99px 0 0 99px;\n}\n\n#custom-thunar {\n    margin-right: 4px;\n    border-radius: 0 99px 99px 0;\n}\n\n#custom-launcher {\n    color: @launcher;\n}\n\n#custom-power {\n    color: @power;\n}\n\n#tray {\n    background: @special;\n}\n\n#keyboard-state {\n    background: transparent;\n}\n\n#keyboard-state label.locked {\n    background: @special;\n    color: @module_fg;\n    padding: 0px 12px;\n    margin: 4px 2px 4px 2px;\n    border-radius: 99px;\n}\n\n#network.disconnected,\n#network.disabled {\n    color: @power;\n}\n\n/* --- Hover Effects --- */\n#clock:hover,\n#network:hover,\n#backlight:hover,\n#pulseaudio:hover,\n#memory:hover,\n#custom-clip:hover,\n#custom-snip:hover,\n#custom-taskmanager:hover,\n#custom-theme-switcher:hover,\n#idle_inhibitor:hover,\n#custom-power:hover,\n#custom-launcher:hover,\n#custom-chrome:hover,\n#custom-terminal:hover,\n#custom-code:hover,\n#custom-music:hover,\n#custom-thunar:hover {\n    background: @hover_bg;\n    color: @hover_fg;\n}\n\n#custom-todo:hover,\n#custom-countdown:hover {\n    background: @special;\n    color: @special_fg;\n}\n\n\n\n#custom-power:hover {\n    background: @power;\n    color: @bar_bg;\n}\n\n/* --- Taskbar --- */\n#taskbar {\n    background: @module_bg;\n    margin: 4px;\n    padding: 2px;\n    border-radius: 99px;\n}\n\n#taskbar button {\n    padding: 0 8px;\n    border: 1px solid transparent;\n    border-radius: 99px;\n    transition: background 0.3s ease;\n}\n\n#taskbar button.active {\n    background: alpha(@hover_bg, 0.25);\n}\n\n#taskbar button:hover {\n    background: alpha(@hover_bg, 0.15);\n}\n"
+}

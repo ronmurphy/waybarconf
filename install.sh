@@ -11,14 +11,19 @@ BIN_NAME="waybarconf"
 INSTALL_DIR="$HOME/.local/bin"
 APP_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+DATA_DIR="$HOME/.local/share/waybarconf"
 
 echo "Creating directories..."
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$APP_DIR"
 mkdir -p "$ICON_DIR"
+mkdir -p "$DATA_DIR"
 
 echo "Installing binary..."
 cp target/release/"$BIN_NAME" "$INSTALL_DIR/"
+
+echo "Installing presets..."
+cp -r presets "$DATA_DIR/"
 
 echo "Creating desktop entry..."
 cat <<EOF > "$APP_DIR/waybarconf.desktop"
