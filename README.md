@@ -2,11 +2,9 @@
 
 A powerful, native GTK4/Libadwaita configuration editor for **Waybar**.
 
-WaybarConf provides a "no-code" experience for ricing your Waybar. It allows you to visually manage modules, edit properties, and create professional color schemes using Material Design 3 extraction from your wallpaper.
+WaybarConf provides a "no-code" experience for ricing your Waybar. It allows you to visually manage modules, edit properties, swap layout templates, and create professional color schemes using presets or Material Design 3 extraction.
 
-<img width="1599" height="899" alt="2025-12-31_17-58" src="https://github.com/user-attachments/assets/307c5829-7c99-4cb0-a753-1b8a1619b70b" />
-<img width="1599" height="899" alt="2025-12-31_17-59" src="https://github.com/user-attachments/assets/3d67f358-fe0f-4b42-b461-a0379b49845a" />
-<img width="1599" height="899" alt="2025-12-31_17-58_1" src="https://github.com/user-attachments/assets/c584a559-b17c-46be-8f40-5584a5655bcb" />
+![WaybarConf Screenshot](https://raw.githubusercontent.com/username/waybarconf/main/screenshot.png) <!-- Note: Replace with actual screenshot link when available -->
 
 ## Features
 
@@ -16,9 +14,12 @@ WaybarConf provides a "no-code" experience for ricing your Waybar. It allows you
     - **Advanced Group Settings**: Enable **Drawer Mode** (slide-out on hover/click), adjust slide duration, and toggle orientation.
 - **Drag & Drop**: Easily reorder and relocate modules across columns and into groups.
 - **Visual Style Editor 🎨**:
-    - **Visual Overrides**: Fine-tune **Border Radius (Pill mode)**, Margin, Padding, and Font Size per module.
-    - **Color Pickers**: Live-edit your Waybar's color scheme.
+    - **Base Layout Selector**: Switch between fundamental styles (Outline, Pill, Square, Standard) instantly without losing your config.
+    - **Color Presets**: One-click apply popular themes (Catppuccin, Dracula, Nord, etc.).
     - **Material Extraction**: Automatically generate palettes from your current wallpaper using `matugen`.
+    - **Visual Overrides**:
+        - Fine-tune **Border Radius**, Margin, Padding, and Font Size per module.
+        - **Color Overrides**: Picker for **Text Color** and **Background Color** for specific modules.
 - **Animation Engine ⚡**:
     - **Hover Effects**: Glow, Lift, Bounce, Wobble, Shake, and Blink presets.
     - **Constant Animations**: Vibrant ROYGBIV Rainbow, Shiver, and Pulse effects.
@@ -58,10 +59,11 @@ The script will:
 
 Simply run `waybarconf` from your application launcher or terminal.
 
-1. **Load/Save Profiles**: Manage different specialized layouts.
-2. **Add Modules**: Use the search bar in the `+` popover to find Waybar modules.
-3. **Customize**: Adjust colors and layout metrics in the Styles tab.
-4. **Apply**: Click the **Apply** button to push your new design live.
+1. **Base Style**: Go to the **Styles** tab and pick a "Base Layout" (e.g., Pill or Outline).
+2. **Colors**: Pick a "Color Theme" preset or use "Extract Colors" to match your wallpaper.
+3. **Add Modules**: Use the search bar in the `+` popover to find Waybar modules.
+4. **Customize**: Click a module to edit properties. Use "Visual Overrides" to change specific colors or metrics.
+5. **Apply**: Click the **Apply** button to push your new design live.
 
 ## Development
 

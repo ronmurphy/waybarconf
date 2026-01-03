@@ -40,7 +40,7 @@ const DEFAULT_STYLE_VARS: &str = r#"/* WaybarConf Style Variables */
 "#;
 
 const DEFAULT_LAYOUT_CSS: &str = r#"/* WaybarConf Layout CSS */
-#clock, #cpu, #battery, #backlight, #pulseaudio, #network, #memory, #tray, #idle_inhibitor, #bluetooth, #cava, #disk, #temperature, #upower, #wireplumber, #mpris, #mpd, #backlight-slider, #pulseaudio-slider, #power-profiles-daemon, #privacy, #load, #jack, #sndio, #systemd-failed-units, #user, .user, .cpu, .load, #cffi, #gamemode, #inhibitor, #image, #keyboard-state, #workspaces, #window, #mode, #scratchpad, #tags, #layout, #language, #submap, #taskbar, .custom {
+#clock, #cpu, #battery, #backlight, #pulseaudio, #network, #memory, #tray, #idle_inhibitor, #bluetooth, #cava, #disk, #temperature, #upower, #wireplumber, #mpris, #mpd, #backlight-slider, #pulseaudio-slider, #power-profiles-daemon, #privacy, #load, #jack, #sndio, #systemd-failed-units, #user, .user, .cpu, .load, #cffi, #gamemode, #inhibitor, #image, #keyboard-state, #workspaces, #taskbar, #wlr-taskbar, #hyprland-workspaces, #hyprland-window, #hyprland-submap, #hyprland-language, #sway-workspaces, #sway-window, #sway-mode, #sway-scratchpad, #niri-workspaces, #niri-window, #river-tags, #river-window, #river-mode, #river-layout, #dwl-tags, #dwl-window, #window, #mode, #scratchpad, #tags, #layout, #language, #submap, .custom {
     padding: 4px 8px;
     margin: 0 4px;
     background: @module_bg;
@@ -358,8 +358,7 @@ fn build_ui(app: &Application) {
     let load_profile_btn = Button::with_label("Load Profile");
     header.pack_start(&load_profile_btn);
 
-    let load_preset_btn = Button::with_label("Load Preset");
-    header.pack_start(&load_preset_btn);
+
     
     let apply_btn = Button::with_label("Apply");
     apply_btn.add_css_class("accent");
@@ -522,6 +521,7 @@ fn build_ui(app: &Application) {
     let toast_ref = toast_overlay.clone();
     *update_properties_fn.borrow_mut() = Some(Box::new({
         let config_rc = Rc::clone(&config_rc);
+        let style_rc = Rc::clone(&style_rc);
         let props_page = properties_page.clone();
         let code_page = code_page.clone();
         let refresh_rc = Rc::clone(&refresh_rc);
@@ -703,6 +703,57 @@ fn build_ui(app: &Application) {
             vis_group.add(&create_css_row("Border Radius", "border-radius", 0.0, 50.0, layout_css_path.clone(), mod_name.clone(), Rc::clone(&update_props_self)));
             
             props_page.append(&vis_group);
+            
+            // --- Color Overrides (FG/BG) ---
+            let color_group = PreferencesGroup::new();
+            color_group.set_title("Color Overrides");
+            
+            // Helper to resolve color
+            let get_current_color = |prop: &str, style_rc: &Rc<RefCell<StyleConfig>>| -> Option<gdk::RGBA> {
+                if let Some(val) = get_module_css_prop(&layout_css_path, &mod_name, "", prop) {
+                    if let Ok(c) = gdk::RGBA::parse(&val) { return Some(c); }
+                    if val.starts_with('@') {
+                        let var_name = val.trim_start_matches('@');
+                        if let Some(resolved) = style_rc.borrow().vars.get(var_name) {
+                             if let Ok(c) = gdk::RGBA::parse(resolved) { return Some(c); }
+                        }
+                    }
+                }
+                None
+            };
+            
+            // Text Color
+            let fg_row = ActionRow::new();
+            fg_row.set_title("Text Color");
+            let fg_btn = ColorButton::new();
+            if let Some(c) = get_current_color("color", &style_rc) { fg_btn.set_rgba(&c); }
+            let lp_fg = layout_css_path.clone(); let mn_fg = mod_name.clone(); let upd_fg = Rc::clone(&update_props_self);
+            fg_btn.connect_color_set(move |btn| {
+                let rgba = btn.rgba();
+                let hex = format!("#{:02x}{:02x}{:02x}", (rgba.red() * 255.0) as u8, (rgba.green() * 255.0) as u8, (rgba.blue() * 255.0) as u8);
+                update_module_css(&lp_fg, &mn_fg, "", "color", &hex);
+                if let Some(f) = &*upd_fg.borrow() { f(mn_fg.clone()); }
+            });
+            fg_row.add_suffix(&fg_btn);
+            color_group.add(&fg_row);
+            
+            // Background Color
+            let bg_row = ActionRow::new();
+            bg_row.set_title("Background Color");
+            let bg_btn = ColorButton::new();
+            if let Some(c) = get_current_color("background-color", &style_rc).or_else(|| get_current_color("background", &style_rc)) { bg_btn.set_rgba(&c); }
+            let lp_bg = layout_css_path.clone(); let mn_bg = mod_name.clone(); let upd_bg = Rc::clone(&update_props_self);
+            bg_btn.connect_color_set(move |btn| {
+                 let rgba = btn.rgba();
+                 let hex = format!("#{:02x}{:02x}{:02x}", (rgba.red() * 255.0) as u8, (rgba.green() * 255.0) as u8, (rgba.blue() * 255.0) as u8);
+                 update_module_css(&lp_bg, &mn_bg, "", "background-color", &hex);
+                 update_module_css(&lp_bg, &mn_bg, "", "background", "");
+                 if let Some(f) = &*upd_bg.borrow() { f(mn_bg.clone()); }
+            });
+            bg_row.add_suffix(&bg_btn);
+            color_group.add(&bg_row);
+            
+            props_page.append(&color_group);
 
             // --- Group Configuration (Drawer/Orientation) ---
             if mod_name.starts_with("group/") {
@@ -1100,13 +1151,185 @@ fn build_ui(app: &Application) {
             let style_rc = Rc::clone(&style_rc);
             let styles_page = styles_page.clone();
             let toast_styles = toast_styles.clone();
+            let style_rc = Rc::clone(&style_rc);
+            let styles_page = styles_page.clone();
+            let toast_styles = toast_styles.clone();
             let refresh_self = Rc::clone(&refresh_styles_fn);
+            let layout_css_path = layout_css_path.clone();
             
             move || {
                 while let Some(child) = styles_page.first_child() { styles_page.remove(&child); }
                 let title = Label::new(Some("Visual Style Editor"));
                 title.add_css_class("title-3");
                 styles_page.append(&title);
+
+                // --- Base Layout Selector ---
+                let layout_group = PreferencesGroup::new();
+                layout_group.set_title("Base Layout");
+                
+                // Find presets/layouts directory
+                let exe_path = std::env::current_exe().unwrap_or_default();
+                let exe_dir = exe_path.parent().unwrap_or(Path::new("."));
+                let mut layouts_path = PathBuf::from("presets/layouts");
+                if !layouts_path.exists() {
+                    layouts_path = exe_dir.join("presets/layouts");
+                    if !layouts_path.exists() {
+                        layouts_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()).join("presets/layouts");
+                    }
+                    if !layouts_path.exists() {
+                        let home = std::env::var("HOME").unwrap_or_default();
+                        layouts_path = PathBuf::from(home).join(".local/share/waybarconf/presets/layouts");
+                    }
+                }
+
+                if layouts_path.exists() {
+                    let mut layouts = Vec::new();
+                    if let Ok(entries) = fs::read_dir(&layouts_path) {
+                        for entry in entries.flatten() {
+                            if let Ok(ft) = entry.file_type() {
+                                if ft.is_file() {
+                                    if let Some(name) = entry.file_name().to_str() {
+                                        if name.ends_with(".css") {
+                                            layouts.push(name.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    layouts.sort();
+
+                    if !layouts.is_empty() {
+                        let layout_row = ComboRow::new();
+                        layout_row.set_title("Layout Template");
+                        let model = StringList::new(layouts.iter().map(|s| s.as_str()).collect::<Vec<&str>>().as_slice());
+                        layout_row.set_model(Some(&model));
+
+                        // Determine current selection
+                        let current_css = fs::read_to_string(&layout_css_path).unwrap_or_default();
+                        let mut current_idx = 0;
+                        for (i, name) in layouts.iter().enumerate() {
+                            if current_css.contains(&format!("layouts/{}", name)) {
+                                current_idx = i as u32;
+                                break;
+                            }
+                        }
+                        layout_row.set_selected(current_idx);
+
+                        let lp = layout_css_path.clone();
+                        let toast_l = toast_styles.clone();
+                        let layouts_c = layouts.clone();
+                        layout_row.connect_selected_notify(move |row| {
+                            let idx = row.selected() as usize;
+                            if idx < layouts_c.len() {
+                                let new_layout = &layouts_c[idx];
+                                let mut css = fs::read_to_string(&lp).unwrap_or_default();
+                                
+                                // Replace existing import or add new one
+                                let import_str = format!("@import \"layouts/{}\";", new_layout);
+                                let re = regex::Regex::new(r#"@import\s+"layouts/[^"]+";"#).unwrap();
+                                
+                                if re.is_match(&css) {
+                                    css = re.replace(&css, import_str.as_str()).to_string();
+                                } else {
+                                    // Insert at a reasonable place (after color import or at top)
+                                    if let Some(pos) = css.find("@import \"colors/wallpaper.css\";") {
+                                        css.insert_str(pos + 31, &format!("\n\n/** Imports a layout (style) for bar **/\n{}\n", import_str));
+                                    } else {
+                                        css.insert_str(0, &format!("{}\n", import_str));
+                                    }
+                                }
+                                
+                                if let Ok(_) = fs::write(&lp, css) {
+                                    toast_l.add_toast(Toast::new(&format!("Switched to {}", new_layout)));
+                                }
+                            }
+                        });
+                        layout_group.add(&layout_row);
+                    }
+                }
+                styles_page.append(&layout_group);
+
+                // --- Color Preset Selector ---
+                let color_preset_group = PreferencesGroup::new();
+                color_preset_group.set_title("Color Presets");
+                
+                // Find presets/colors directory
+                let mut colors_path = PathBuf::from("presets/colors");
+                if !colors_path.exists() {
+                    colors_path = exe_dir.join("presets/colors");
+                    if !colors_path.exists() {
+                        colors_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()).join("presets/colors");
+                    }
+                    if !colors_path.exists() {
+                        let home = std::env::var("HOME").unwrap_or_default();
+                        colors_path = PathBuf::from(home).join(".local/share/waybarconf/presets/colors");
+                    }
+                }
+
+                if colors_path.exists() {
+                    let mut preset_colors = Vec::new();
+                    if let Ok(entries) = fs::read_dir(&colors_path) {
+                        for entry in entries.flatten() {
+                            if let Ok(ft) = entry.file_type() {
+                                if ft.is_file() {
+                                    if let Some(name) = entry.file_name().to_str() {
+                                        if name.ends_with(".css") {
+                                            preset_colors.push(name.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    preset_colors.sort();
+
+                    if !preset_colors.is_empty() {
+                        let cf_row = ComboRow::new();
+                        cf_row.set_title("Color Theme");
+                        let model = StringList::new(preset_colors.iter().map(|s| s.as_str()).collect::<Vec<&str>>().as_slice());
+                        cf_row.set_model(Some(&model));
+                        
+                        // We don't verify current selection against file content because vars are parsed values. 
+                        // Just set to -1 or 0. Since it's a dropdown, 0 is fine, or we could add a "Custom" entry.
+                        // For simplicity, we just won't try to sync the dropdown to current state if it doesn't match a filename.
+
+                        let cp_p = colors_path.clone();
+                        let style_cp = Rc::clone(&style_rc);
+                        let refresh_cp = Rc::clone(&refresh_self);
+                        let toast_cp = toast_styles.clone();
+                        let presets_c = preset_colors.clone();
+                        
+                        cf_row.connect_selected_notify(move |row| {
+                            let idx = row.selected() as usize;
+                            if idx < presets_c.len() {
+                                let filename = &presets_c[idx];
+                                let target_file = cp_p.join(filename);
+                                if let Ok(content) = fs::read_to_string(&target_file) {
+                                    let new_vars = parse_style_vars(&content);
+                                    if !new_vars.is_empty() {
+                                        {
+                                            let mut s = style_cp.borrow_mut();
+                                            // Merge or Replace? Replaced as per "Load Preset" logic usually.
+                                            // The user said "use EITHER mutagen OR one of the css files", implying full replacement of the scheme.
+                                            // But let's keep unknown vars? No, themes usually define the whole palette.
+                                            // However, `parse_style_vars` only returns what it finds.
+                                            // Let's iterate and update.
+                                            for (k, v) in new_vars {
+                                                s.vars.insert(k, v);
+                                            }
+                                        }
+                                        let _ = style_cp.borrow().save();
+                                        if let Some(f) = &*refresh_cp.borrow() { f(); }
+                                        toast_cp.add_toast(Toast::new(&format!("Applied {} Theme", filename)));
+                                    }
+                                }
+                            }
+                        });
+                        color_preset_group.add(&cf_row);
+                    }
+                }
+                styles_page.append(&color_preset_group);
 
                 let auto_group = PreferencesGroup::new();
                 auto_group.set_title("Auto-Color from Wallpaper");
@@ -1278,70 +1501,7 @@ fn build_ui(app: &Application) {
         }
     });
 
-    load_preset_btn.connect_clicked({
-        let config_rc = Rc::clone(&config_rc);
-        let style_rc = Rc::clone(&style_rc);
-        let layout_css_path = layout_css_path.clone();
-        let win_rc = Rc::clone(&win_rc);
-        let refresh_rc = Rc::clone(&refresh_rc);
-        let refresh_styles_fn = Rc::clone(&refresh_styles_fn);
-        let t_load = t_overlay.clone();
-        
-        move |_| {
-            let filter = FileFilter::new(); filter.add_pattern("*.wc");
-            let mut dialog_builder = FileDialog::builder().title("Load Preset").default_filter(&filter);
-            
-            // Try to find the presets directory
-            let exe_path = std::env::current_exe().unwrap_or_default();
-            let exe_dir = exe_path.parent().unwrap_or(Path::new("."));
-            let mut presets_path = PathBuf::from("presets");
-            if !presets_path.exists() {
-                // Try sibling to exe (for dev)
-                presets_path = exe_dir.join("presets");
-                if !presets_path.exists() {
-                    // Try project root (for dev)
-                    presets_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()).join("presets");
-                }
-                if !presets_path.exists() {
-                    // Try installed data directory
-                    let home = std::env::var("HOME").unwrap_or_default();
-                    presets_path = PathBuf::from(home).join(".local/share/waybarconf/presets");
-                }
-            }
 
-            if presets_path.exists() {
-                let file = gio::File::for_path(&presets_path);
-                dialog_builder = dialog_builder.initial_folder(&file);
-            }
-
-            let dialog = dialog_builder.build();
-            
-            let config_rc = Rc::clone(&config_rc);
-            let style_rc = Rc::clone(&style_rc);
-            let layout_css_path = layout_css_path.clone();
-            let refresh_rc = Rc::clone(&refresh_rc);
-            let refresh_styles_fn = Rc::clone(&refresh_styles_fn);
-            let t_l = t_load.clone();
-            
-            if let Some(win) = win_rc.borrow().as_ref() {
-                dialog.open(Some(win), gio::Cancellable::NONE, move |res| {
-                    if let Ok(file) = res {
-                        if let Some(path) = file.path() {
-                            if let Ok(profile) = WaybarProfile::from_file(path.to_str().unwrap()) {
-                                *config_rc.borrow_mut() = profile.config;
-                                style_rc.borrow_mut().vars = profile.style_vars;
-                                let _ = fs::write(&layout_css_path, profile.layout_css);
-                                
-                                refresh_rc();
-                                if let Some(f) = &*refresh_styles_fn.borrow() { f(); }
-                                t_l.add_toast(Toast::new("Preset Loaded"));
-                            }
-                        }
-                    }
-                });
-            }
-        }
-    });
 
     apply_btn.connect_clicked({
         let config_rc = Rc::clone(&config_rc);
