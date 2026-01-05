@@ -1,0 +1,10 @@
+{
+    "name": "Fancy Clock",
+    "description": "A vertical clock with date",
+    "icon": "clock",
+    "module_type": "clock",
+    "config": {
+        "format": "{:%H\n%M}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+    }
+}

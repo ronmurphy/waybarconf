@@ -1,0 +1,14 @@
+{
+    "name": "Workspaces (Hyprland)",
+    "description": "Clickable workspaces",
+    "icon": "user-desktop-symbolic",
+    "module_type": "hyprland/workspaces",
+    "config": {
+        "format": "{name}",
+        "on-click": "activate",
+        "sort-by-number": true,
+        "persistent-workspaces": {
+            "*": 5
+        }
+    }
+}

@@ -1,0 +1,15 @@
+{
+    "name": "CPU Graph",
+    "description": "CPU usage with icon and states",
+    "icon": "cpu",
+    "module_type": "cpu",
+    "config": {
+        "interval": 2,
+        "format": "{usage}% ",
+        "tooltip": true,
+        "states": {
+            "warning": 70,
+            "critical": 90
+        }
+    }
+}

@@ -15,6 +15,7 @@ use adw::prelude::*;
 use adw::{ActionRow, Application, ApplicationWindow, HeaderBar, ViewStack, ViewSwitcher, PreferencesGroup, ToastOverlay, Toast, MessageDialog, ComboRow};
 use gtk::{Box as GtkBox, ListBox, Orientation, Label, ScrolledWindow, TextView, Entry, Switch, Button, ColorButton, FileDialog, FileFilter, StringList, SearchEntry, Scale};
 use crate::config::{WaybarConfig, WaybarProfile};
+use serde::{Deserialize, Serialize};
 
 const DEFAULT_CONFIG_JSON: &str = r#"{
     "modules-left": ["custom/launcher", "wlr/taskbar"],
@@ -40,7 +41,10 @@ const DEFAULT_STYLE_VARS: &str = r#"/* WaybarConf Style Variables */
 "#;
 
 const DEFAULT_LAYOUT_CSS: &str = r#"/* WaybarConf Layout CSS */
-#clock, #cpu, #battery, #backlight, #pulseaudio, #network, #memory, #tray, #idle_inhibitor, #bluetooth, #cava, #disk, #temperature, #upower, #wireplumber, #mpris, #mpd, #backlight-slider, #pulseaudio-slider, #power-profiles-daemon, #privacy, #load, #jack, #sndio, #systemd-failed-units, #user, .user, .cpu, .load, #cffi, #gamemode, #inhibitor, #image, #keyboard-state, #workspaces, #taskbar, #wlr-taskbar, #hyprland-workspaces, #hyprland-window, #hyprland-submap, #hyprland-language, #sway-workspaces, #sway-window, #sway-mode, #sway-scratchpad, #niri-workspaces, #niri-window, #river-tags, #river-window, #river-mode, #river-layout, #dwl-tags, #dwl-window, #window, #mode, #scratchpad, #tags, #layout, #language, #submap, .custom {
+#clock, #cpu, #battery, #backlight, #pulseaudio, #network, #memory, #tray, #idle_inhibitor, #bluetooth, #cava, #disk, #temperature, #upower, #wireplumber, #mpris, #mpd, #backlight-slider, #pulseaudio-slider, #power-profiles-daemon, #privacy, #load, #jack, #sndio, #systemd-failed-units, #user,
+.clock, .battery, .cpu, .memory, .disk, .temperature, .backlight, .network, .pulseaudio, .tray, .workspaces, .mode, .window, .user, .load, .wireplumber, .mpris, .mpd, .bluetooth, .idle_inhibitor,
+#custom-launcher, #custom-power, #custom-weather-simple, #custom-chrome, #custom-terminal, #custom-code, #custom-music, #custom-thunar, #custom-clip, #custom-snip, #custom-theme-switcher, #custom-todo, #custom-countdown,
+.custom {
     padding: 4px 8px;
     margin: 0 4px;
     background: @module_bg;
@@ -159,6 +163,15 @@ impl StyleConfig {
         }
         fs::write(path, content)
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ModuleBrick {
+    name: String,
+    description: String,
+    icon: String,
+    module_type: String,
+    config: serde_json::Value,
 }
 
 fn detect_wallpaper() -> Option<String> {
@@ -407,6 +420,24 @@ fn build_ui(app: &Application) {
     view_stack.add_titled(&props_scroll, Some("properties"), "Properties");
     view_stack.add_titled(&styles_scroll, Some("styles"), "Styles");
     view_stack.add_titled(&code_page, Some("code"), "Code");
+
+    // --- Gallery Page ---
+    let gallery_page = GtkBox::new(Orientation::Vertical, 12);
+    gallery_page.set_margin_top(12);
+    gallery_page.set_margin_bottom(12);
+    gallery_page.set_margin_start(12);
+    gallery_page.set_margin_end(12);
+    
+    let gallery_search = Entry::builder().placeholder_text("Search bricks...").secondary_icon_name("system-search-symbolic").build();
+    gallery_page.append(&gallery_search);
+
+    let gallery_list = ListBox::new();
+    gallery_list.add_css_class("boxed-list");
+    let gallery_scroll = ScrolledWindow::builder().child(&gallery_list).vexpand(true).build();
+    gallery_page.append(&gallery_scroll);
+    
+    view_stack.add_titled(&gallery_page, Some("gallery"), "Gallery");
+
     settings_panel.append(&view_stack);
 
     let left_list = ListBox::new();
@@ -517,6 +548,112 @@ fn build_ui(app: &Application) {
     };
     let refresh_rc: Rc<dyn Fn()> = Rc::new(refresh_call);
 
+    // --- Gallery Logic ---
+    let populate_gallery = {
+        let list = gallery_list.clone();
+        let config_rc = Rc::clone(&config_rc);
+        let refresh_rc = Rc::clone(&refresh_rc);
+        let sel_state = Rc::clone(&selected_module_state);
+        let toast_g = toast_overlay.clone();
+        
+        move |filter: &str| {
+            while let Some(child) = list.first_child() { list.remove(&child); }
+            
+            let bricks_dir = PathBuf::from("presets/bricks");
+            if let Ok(entries) = fs::read_dir(bricks_dir) {
+                let mut bricks: Vec<ModuleBrick> = Vec::new();
+                for entry in entries.flatten() {
+                    if let Ok(content) = fs::read_to_string(entry.path()) {
+                        if let Ok(brick) = serde_json::from_str::<ModuleBrick>(&content) {
+                            if filter.is_empty() || brick.name.to_lowercase().contains(&filter.to_lowercase()) {
+                                bricks.push(brick);
+                            }
+                        }
+                    }
+                }
+                bricks.sort_by(|a, b| a.name.cmp(&b.name));
+                
+                for brick in bricks {
+                    let row = ActionRow::new();
+                    row.set_title(&brick.name);
+                    row.set_subtitle(&brick.description);
+                    
+                    // Icon logic (simple check for now)
+                    let icon_name = if gtk::IconTheme::for_display(&gdk::Display::default().unwrap()).has_icon(&brick.icon) {
+                        brick.icon.clone()
+                    } else {
+                        "application-x-addon-symbolic".to_string()
+                    };
+                    row.add_prefix(&gtk::Image::from_icon_name(&icon_name));
+                    
+                    let add_btn = Button::builder().icon_name("list-add-symbolic").has_frame(false).valign(gtk::Align::Center).build();
+                    let b_cfg = Rc::clone(&config_rc);
+                    let b_ref = Rc::clone(&refresh_rc);
+                    let b_sel = Rc::clone(&sel_state);
+                    let b_brick = brick.clone();
+                    let b_toast = toast_g.clone();
+                    
+                    add_btn.connect_clicked(move |_| {
+                        let mut cfg = b_cfg.borrow_mut();
+                        
+                        // 1. Determine ID
+                        let safe_name = b_brick.name.to_lowercase()
+                            .replace(" ", "-")
+                            .chars()
+                            .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                            .collect::<String>();
+                            
+                        let base_id = if b_brick.module_type == "custom" {
+                            format!("custom/{}", safe_name)
+                        } else {
+                            format!("{}#{}", b_brick.module_type, safe_name)
+                        };
+                        
+                        let mut final_id = base_id.clone();
+                        let mut counter = 1;
+                        while cfg.module_definitions.contains_key(&final_id) {
+                            final_id = format!("{}-{}", base_id, counter);
+                            counter += 1;
+                        }
+                        
+                        // 2. Insert Definition
+                        let def = b_brick.config.clone();
+                        cfg.module_definitions.insert(final_id.clone(), def);
+                        
+                        // 3. Add to Column
+                        // Default to right column if nothing selected
+                        let target_col = if let Some((col, _)) = &*b_sel.borrow() { col.clone() } else { "right".to_string() };
+                        
+                        match target_col.as_str() {
+                            "left" => cfg.modules_left.push(final_id.clone()),
+                            "center" => cfg.modules_center.push(final_id.clone()),
+                            "right" => cfg.modules_right.push(final_id.clone()),
+                            _ => cfg.modules_right.push(final_id.clone()),
+                        }
+                        
+                        drop(cfg);
+                        b_ref();
+                        b_toast.add_toast(Toast::new(&format!("Added {}", b_brick.name)));
+                    });
+                    
+                    row.add_suffix(&add_btn);
+                    list.append(&row);
+                }
+            }
+        }
+    };
+
+    // Connect Search
+    let pop_gal_rc = Rc::new(populate_gallery);
+    {
+        let pop = Rc::clone(&pop_gal_rc);
+        gallery_search.connect_changed(move |e| {
+            pop(&e.text());
+        });
+    }
+    // Initial populate
+    pop_gal_rc("");
+
     // --- Tab Update Logic ---
     let toast_ref = toast_overlay.clone();
     *update_properties_fn.borrow_mut() = Some(Box::new({
@@ -581,6 +718,78 @@ fn build_ui(app: &Application) {
                 });
                 header.append(&rename_btn);
             }
+
+            // --- Save as Brick Button ---
+            let save_brick_btn = Button::builder().icon_name("document-save-symbolic").has_frame(false).valign(gtk::Align::Center).tooltip_text("Save as Brick").build();
+            let sb_mod_name = mod_name.clone();
+            let sb_config = Rc::clone(&config_rc);
+            let sb_toast = toast_p.clone();
+            let sb_pop_gal = Rc::clone(&pop_gal_rc);
+            
+            save_brick_btn.connect_clicked(move |_| {
+                 let dialog = MessageDialog::builder().heading("Save as Brick").body("Save this module as a reusable brick.").build();
+                 let box_layout = GtkBox::new(Orientation::Vertical, 12);
+                 let name_entry = Entry::builder().placeholder_text("Brick Name (e.g. My Clock)").build();
+                 let desc_entry = Entry::builder().placeholder_text("Description").build();
+                 box_layout.append(&name_entry);
+                 box_layout.append(&desc_entry);
+                 dialog.set_extra_child(Some(&box_layout));
+                 dialog.add_response("cancel", "Cancel");
+                 dialog.add_response("save", "Save");
+                 dialog.set_response_appearance("save", adw::ResponseAppearance::Suggested);
+                 
+                 let d_mod = sb_mod_name.clone();
+                 let d_cfg = Rc::clone(&sb_config);
+                 let d_toast = sb_toast.clone();
+                 let d_pop = Rc::clone(&sb_pop_gal);
+                 let d_name = name_entry.clone();
+                 let d_desc = desc_entry.clone();
+                 
+                 dialog.connect_response(None, move |d, response| {
+                     if response == "save" {
+                         let name = d_name.text().to_string();
+                         let desc = d_desc.text().to_string();
+                         if !name.is_empty() {
+                             let cfg = d_cfg.borrow();
+                             if let Some(def_val) = cfg.module_definitions.get(&d_mod) {
+                                  // Determine type
+                                  let m_type = if d_mod.starts_with("custom/") { "custom".to_string() } else {
+                                      d_mod.split('#').next().unwrap_or("custom").to_string()
+                                  };
+                                  // Determine Icon (simple heuristic)
+                                  let icon = match m_type.as_str() {
+                                      "clock" => "clock", "cpu" => "cpu", "memory" => "memory", "battery" => "battery", 
+                                      "network" => "network-wireless", "pulseaudio" => "audio-volume-high", _ => "application-x-addon-symbolic"
+                                  }.to_string();
+                                  
+                                  let brick = ModuleBrick {
+                                      name: name.clone(),
+                                      description: desc,
+                                      icon,
+                                      module_type: m_type,
+                                      config: def_val.clone(),
+                                  };
+                                  
+                                  let safe_filename = name.to_lowercase().replace(" ", "_")
+                                      .chars()
+                                      .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                                      .collect::<String>();
+                                  let filename = format!("presets/bricks/{}.json", safe_filename);
+                                  if let Ok(json) = serde_json::to_string_pretty(&brick) {
+                                      if fs::write(&filename, json).is_ok() {
+                                          d_toast.add_toast(Toast::new(&format!("Saved brick: {}", name)));
+                                          d_pop(""); // Refresh gallery
+                                      }
+                                  }
+                             }
+                         }
+                     }
+                     d.close();
+                 });
+                 dialog.present();
+            });
+            header.append(&save_brick_btn);
+
             props_page.append(&header);
             
             let group = PreferencesGroup::new();
@@ -1542,10 +1751,18 @@ fn build_ui(app: &Application) {
                 let _ = fs::write(&target_layout, DEFAULT_LAYOUT_CSS);
             }
 
-            let _ = Command::new("pkill").args(["-x", "waybar"]).status();
-            let _ = Command::new("waybar").spawn();
-            let escaped = glib::markup_escape_text("Applied & Restored Styles");
-            t_apply.add_toast(Toast::new(&escaped));
+            // Fast CSS Reload: Try SIGUSR2 first.
+            let status = Command::new("pkill").args(["-SIGUSR2", "-x", "waybar"]).status();
+            if status.is_ok() && status.as_ref().unwrap().success() {
+                let escaped = glib::markup_escape_text("Styles Reloaded (Fast)");
+                t_apply.add_toast(Toast::new(&escaped));
+            } else {
+                // If waybar isn't running or reload failed, restart it.
+                let _ = Command::new("pkill").args(["-x", "waybar"]).status();
+                let _ = Command::new("waybar").spawn();
+                let escaped = glib::markup_escape_text("Applied & Started Waybar");
+                t_apply.add_toast(Toast::new(&escaped));
+            }
         }
     });
 

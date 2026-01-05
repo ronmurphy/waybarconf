@@ -1,0 +1,13 @@
+{
+    "name": "Weather (Simple)",
+    "description": "Simple text weather from wttr.in",
+    "icon": "weather-clear-symbolic",
+    "module_type": "custom",
+    "config": {
+        "format": "{}",
+        "tooltip": true,
+        "interval": 3600,
+        "exec": "curl -s 'wttr.in/?format=1'",
+        "return-type": "json"
+    }
+}
