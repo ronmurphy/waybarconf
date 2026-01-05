@@ -1,0 +1,13 @@
+/* Glacier Minimal Preset */
+@define-color bar_bg transparent;
+@define-color bar_fg #1e1e1e;
+@define-color module_bg #ffffffcc;
+@define-color module_fg #1e1e1e;
+@define-color hover_bg #e8f0f8;
+@define-color hover_fg #007acc;
+@define-color border_color #aacce6;
+@define-color workspace_bg #e8f0f8cc;
+@define-color workspace_button_bg #e8f0f8cc;
+@define-color workspace_active_bg #007accc9;
+@define-color workspace_text #1e1e1e;
+@define-color workspace_active_text #ffffff;

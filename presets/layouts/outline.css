@@ -61,24 +61,6 @@ tooltip label {
 #image,
 #keyboard-state,
 #workspaces,
-#taskbar,
-#wlr-taskbar,
-#hyprland-workspaces,
-#hyprland-window,
-#hyprland-submap,
-#hyprland-language,
-#sway-workspaces,
-#sway-window,
-#sway-mode,
-#sway-scratchpad,
-#niri-workspaces,
-#niri-window,
-#river-tags,
-#river-window,
-#river-mode,
-#river-layout,
-#dwl-tags,
-#dwl-window,
 #window,
 #mode,
 #scratchpad,
@@ -173,8 +155,11 @@ tooltip label {
 #custom-taskmanager:hover,
 #custom-theme-switcher:hover,
 #idle_inhibitor:hover,
-#custom-power:hover,
-#custom-launcher:hover {
+#custom-chrome:hover,
+#custom-terminal:hover,
+#custom-code:hover,
+#custom-music:hover,
+#custom-thunar:hover {
     color: @hover_bg;
     border-color: @hover_bg;
 }

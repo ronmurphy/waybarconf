@@ -1,0 +1,13 @@
+/* Sunrise Blue Preset */
+@define-color bar_bg transparent;
+@define-color bar_fg #ffffff;
+@define-color module_bg #0a192fc7;
+@define-color module_fg #ffffff;
+@define-color hover_bg #1e2f42;
+@define-color hover_fg #ffffff;
+@define-color border_color #585b70;
+@define-color workspace_bg #0a192fd9;
+@define-color workspace_button_bg #0a192fd9;
+@define-color workspace_active_bg #ffb347f2;
+@define-color workspace_text #ffffff;
+@define-color workspace_active_text #1a1a1a;

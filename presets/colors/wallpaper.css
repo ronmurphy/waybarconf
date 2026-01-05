@@ -1,13 +1,13 @@
-/* WaybarConf Style Variables */
+/* waybar matugen colors */
 
-@define-color bar_bg #121509;
-@define-color bar_fg #e2e4d0;
-@define-color module_bg #394c2a;
-@define-color module_fg #d3eabc;
-@define-color hover_bg #abd600;
-@define-color hover_fg #283500;
-@define-color border_color #909280;
+@define-color bar_bg #18120c;
+@define-color bar_fg #ede0d4;
+@define-color module_bg #251f17; 
+@define-color module_fg @bar_fg;
+@define-color hover_bg #f6bc70;
+@define-color hover_fg #462a00;
+@define-color border_color #9c8e80;
 @define-color launcher @hover_bg;
-@define-color special #454a21;
+@define-color special #3c4c29;
 @define-color special_fg @module_fg;
 @define-color power #ffb4ab;

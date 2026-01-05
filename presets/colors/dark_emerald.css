@@ -1,0 +1,13 @@
+/* Dark Emerald Preset */
+@define-color bar_bg transparent;
+@define-color bar_fg #e0e0e0;
+@define-color module_bg #111827d9;
+@define-color module_fg #e0e0e0;
+@define-color hover_bg #2a3749;
+@define-color hover_fg #ffffff;
+@define-color border_color #585b70;
+@define-color workspace_bg #111827d9;
+@define-color workspace_button_bg #111827d9;
+@define-color workspace_active_bg #025939f2;
+@define-color workspace_text #e8e8e8;
+@define-color workspace_active_text #ffffff;

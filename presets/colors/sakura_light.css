@@ -1,0 +1,13 @@
+/* Sakura Light Preset */
+@define-color bar_bg transparent;
+@define-color bar_fg #2e2e2e;
+@define-color module_bg #f8f1f1b8;
+@define-color module_fg #2e2e2e;
+@define-color hover_bg #ffeef2;
+@define-color hover_fg #000000;
+@define-color border_color #ffb7c5;
+@define-color workspace_bg #f8f1f1ad;
+@define-color workspace_button_bg #ffb7c5d1;
+@define-color workspace_active_bg #ffb7c5f2;
+@define-color workspace_text #2e2e2e;
+@define-color workspace_active_text #1a1a1a;

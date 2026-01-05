@@ -1517,6 +1517,21 @@ fn build_ui(app: &Application) {
             let target_layout = waybar_cfg_dir.join("style.css");
             let _ = fs::create_dir_all(waybar_cfg_dir.join("colors"));
             
+            // Sync layout templates to ~/.config/waybar/layouts
+            let layouts_src = PathBuf::from("presets/layouts");
+            let layouts_dst = waybar_cfg_dir.join("layouts");
+            let _ = fs::create_dir_all(&layouts_dst);
+            if let Ok(entries) = fs::read_dir(layouts_src) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        if let Some(name) = path.file_name() {
+                            let _ = fs::copy(&path, layouts_dst.join(name));
+                        }
+                    }
+                }
+            }
+
             let _ = config_rc.borrow().save_to_file(target_cfg.to_str().unwrap());
             let _ = style_rc.borrow().save_to(&target_style);
             
@@ -1529,7 +1544,7 @@ fn build_ui(app: &Application) {
 
             let _ = Command::new("pkill").args(["-x", "waybar"]).status();
             let _ = Command::new("waybar").spawn();
-            let escaped = glib::markup_escape_text("Applied & Restarted Waybar");
+            let escaped = glib::markup_escape_text("Applied & Restored Styles");
             t_apply.add_toast(Toast::new(&escaped));
         }
     });
