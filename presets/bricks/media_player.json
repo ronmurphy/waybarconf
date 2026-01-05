@@ -1,0 +1,19 @@
+{
+    "name": "Media Player (Spotify/MPD)",
+    "description": "Displays current media with basic controls",
+    "icon": "audio-x-generic",
+    "module_type": "mpris",
+    "config": {
+        "format": "DEFAULT: {player_icon} {dynamic}",
+        "format-paused": "DEFAULT: {status_icon} <i>{dynamic}</i>",
+        "player-icons": {
+            "default": "▶",
+            "mpd": "🎵"
+        },
+        "status-icons": {
+            "paused": "⏸"
+        },
+        "interval": 1,
+        "max-length": 30
+    }
+}

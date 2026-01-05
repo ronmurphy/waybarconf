@@ -1,0 +1,14 @@
+{
+    "name": "Arch Updates",
+    "description": "Count of pending system updates (Pacman + AUR)",
+    "icon": "system-software-update",
+    "module_type": "custom",
+    "config": {
+        "class": "custom",
+        "format": "{}",
+        "return-type": "json",
+        "interval": 3600,
+        "exec": "bash ~/.local/share/waybarconf/presets/scripts/check_updates.sh",
+        "on-click": "foot -T 'Update System' bash -c 'yay; echo Done - Press enter to exit; read'"
+    }
+}

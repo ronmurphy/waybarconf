@@ -1,0 +1,14 @@
+{
+    "name": "Windows Start",
+    "description": "Windows 11 style start button invoking Rofi",
+    "icon": "view-grid",
+    "module_type": "custom",
+    "config": {
+        "class": "custom",
+        "format": "<big></big>",
+        "tooltip": true,
+        "tooltip-format": "Start",
+        "on-click": "killall rofi 2>/dev/null || bash ~/.config/rofi/launchers/launcher.sh 2>/dev/null",
+        "on-click-right": "bash ~/.config/waybar/scripts/customize.sh 2>/dev/null"
+    }
+}

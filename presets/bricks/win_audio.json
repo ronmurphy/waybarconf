@@ -1,0 +1,25 @@
+{
+    "name": "Windows Audio",
+    "description": "Audio volume with Pavucontrol on right click",
+    "icon": "audio-volume-high",
+    "module_type": "pulseaudio",
+    "config": {
+        "format": "{volume}% {icon}",
+        "format-bluetooth": "{volume}% {icon}",
+        "format-muted": "",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": [
+                "",
+                "",
+                ""
+            ]
+        },
+        "on-click": "pavucontrol"
+    }
+}

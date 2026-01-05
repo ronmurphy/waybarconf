@@ -1,0 +1,16 @@
+{
+    "name": "Windows Network",
+    "description": "Network status with connection editor on right click",
+    "icon": "network-wireless",
+    "module_type": "network",
+    "config": {
+        "format-wifi": "",
+        "format-ethernet": "",
+        "format-linked": "",
+        "format-disconnected": "󱛅",
+        "tooltip-format": "{ifname} via {gwaddr}",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)",
+        "on-click": "killall rofi || bash ~/.config/rofi/wifi/wifi.sh",
+        "on-click-right": "nm-connection-editor"
+    }
+}

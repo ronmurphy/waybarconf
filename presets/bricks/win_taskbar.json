@@ -1,0 +1,18 @@
+{
+    "name": "Windows Taskbar",
+    "description": "Taskbar with icon-only windows",
+    "icon": "preferences-system-windows",
+    "module_type": "wlr/taskbar",
+    "config": {
+        "format": "{icon}",
+        "icon-size": 22,
+        "icon-theme": "Papirus",
+        "tooltip-format": "{title:.50}",
+        "on-click": "minimize-raise",
+        "on-click-middle": "close",
+        "on-click-right": "fullscreen",
+        "ignore-list": [
+            "Waybar"
+        ]
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "name": "Windows Clock",
+    "description": "Simple clock with date tooltip",
+    "icon": "clock",
+    "module_type": "clock",
+    "config": {
+        "format": "{:%I:%M %p}\n{:%Y-%m-%d}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "format-alt": "{:%Y-%m-%d}"
+    }
+}

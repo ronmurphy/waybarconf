@@ -1,0 +1,26 @@
+{
+    "name": "Hardware Monitor",
+    "description": "Group with CPU, RAM, and Temperature",
+    "icon": "computer",
+    "module_type": "group",
+    "config": {
+        "orientation": "horizontal",
+        "modules": [
+            "cpu",
+            "memory",
+            "temperature"
+        ],
+        "cpu": {
+            "format": " {usage}%",
+            "tooltip": true
+        },
+        "memory": {
+            "format": " {}%",
+            "tooltip": true
+        },
+        "temperature": {
+            "critical-threshold": 80,
+            "format": " {temperatureC}°C"
+        }
+    }
+}

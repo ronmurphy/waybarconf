@@ -1363,11 +1363,10 @@ fn build_ui(app: &Application) {
         let styles_page = styles_page.clone();
         let toast_styles = toast_overlay.clone();
         
+        let config_rc = Rc::clone(&config_rc); // Capture config_rc for refresh_styles
         let refresh_styles = {
             let style_rc = Rc::clone(&style_rc);
-            let styles_page = styles_page.clone();
-            let toast_styles = toast_styles.clone();
-            let style_rc = Rc::clone(&style_rc);
+            let config_rc = Rc::clone(&config_rc); // Capture for closure
             let styles_page = styles_page.clone();
             let toast_styles = toast_styles.clone();
             let refresh_self = Rc::clone(&refresh_styles_fn);
@@ -1378,6 +1377,32 @@ fn build_ui(app: &Application) {
                 let title = Label::new(Some("Visual Style Editor"));
                 title.add_css_class("title-3");
                 styles_page.append(&title);
+
+                // --- General Settings (Position) ---
+                let general_group = PreferencesGroup::new();
+                general_group.set_title("General Settings");
+                
+                let pos_row = ComboRow::new();
+                pos_row.set_title("Bar Position");
+                let positions = vec!["Top", "Bottom"];
+                let pos_model = StringList::new(&positions);
+                pos_row.set_model(Some(&pos_model));
+                
+                let current_pos = config_rc.borrow().position.clone().unwrap_or_else(|| "top".to_string());
+                let pos_idx = if current_pos.to_lowercase() == "bottom" { 1 } else { 0 };
+                pos_row.set_selected(pos_idx);
+
+                let config_pos = Rc::clone(&config_rc);
+                let refresh_pos = Rc::clone(&refresh_self);
+                pos_row.connect_selected_notify(move |row| {
+                    let idx = row.selected();
+                    let val = if idx == 1 { "bottom" } else { "top" };
+                    config_pos.borrow_mut().position = Some(val.to_string());
+                    if let Some(f) = &*refresh_pos.borrow() { f(); }
+                });
+                
+                general_group.add(&pos_row);
+                styles_page.append(&general_group);
 
                 // --- Base Layout Selector ---
                 let layout_group = PreferencesGroup::new();
@@ -2009,6 +2034,7 @@ fn build_ui(app: &Application) {
                         modules_left: vec![],
                         modules_center: vec![],
                         modules_right: vec![],
+                        position: None,
                         module_definitions: indexmap::IndexMap::new(),
                     };
                     style_rc_startup.borrow_mut().vars = indexmap::IndexMap::new();

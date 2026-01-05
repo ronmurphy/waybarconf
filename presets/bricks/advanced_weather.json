@@ -1,0 +1,14 @@
+{
+    "name": "Advanced Weather",
+    "description": "Weather status fetched from wttr.in",
+    "icon": "weather-clear",
+    "module_type": "custom",
+    "config": {
+        "class": "custom",
+        "format": "{}",
+        "tooltip": true,
+        "interval": 3600,
+        "exec": "python3 ~/.local/share/waybarconf/presets/scripts/weather.py",
+        "return-type": "json"
+    }
+}

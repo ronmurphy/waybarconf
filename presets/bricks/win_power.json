@@ -1,0 +1,12 @@
+{
+    "name": "Windows Power",
+    "description": "Power menu button",
+    "icon": "system-shutdown",
+    "module_type": "custom",
+    "config": {
+        "class": "custom",
+        "format": "",
+        "tooltip": false,
+        "on-click": "killall rofi 2>/dev/null || bash ~/.config/rofi/powermenu/powermenu.sh 2>/dev/null"
+    }
+}

@@ -13,6 +13,9 @@ pub struct WaybarConfig {
     pub modules_center: Vec<String>,
     #[serde(rename = "modules-right", default)]
     pub modules_right: Vec<String>,
+
+    #[serde(default)]
+    pub position: Option<String>,
     
     #[serde(flatten)]
     pub module_definitions: IndexMap<String, Value>,
