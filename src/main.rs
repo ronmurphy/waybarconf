@@ -617,7 +617,14 @@ fn build_ui(app: &Application) {
                         }
                         
                         // 2. Insert Definition
-                        let def = b_brick.config.clone();
+                        let mut def = b_brick.config.clone();
+                        if b_brick.module_type == "custom" {
+                            if let serde_json::Value::Object(ref mut map) = def {
+                                if !map.contains_key("class") {
+                                    map.insert("class".to_string(), serde_json::Value::String("custom".to_string()));
+                                }
+                            }
+                        }
                         cfg.module_definitions.insert(final_id.clone(), def);
                         
                         // 3. Add to Column

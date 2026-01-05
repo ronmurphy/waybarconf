@@ -4,10 +4,10 @@
     "icon": "weather-clear-symbolic",
     "module_type": "custom",
     "config": {
+        "class": "custom",
         "format": "{}",
         "tooltip": true,
         "interval": 3600,
-        "exec": "curl -s 'wttr.in/?format=1'",
-        "return-type": "json"
+        "exec": "curl -s 'wttr.in/?format=1'"
     }
 }
